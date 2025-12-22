@@ -3175,9 +3175,6 @@
                            `radio_${content.id}`;
         const progress = this.watchProgress.get(progressKey);
         let progressIndicator = '';
-        if (progress && progress.percentage > 5 && progress.percentage < 90) {
-          progressIndicator = `<div class="progress-indicator">${Math.round(progress.percentage)}%</div>`;
-        }
 
         let details = '';
         if (type === 'channel') {
