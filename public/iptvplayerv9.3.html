@@ -2461,6 +2461,7 @@
         const isHLS = extension === 'm3u8' || extension === 'm3u' || extension === 'ts' || url.includes('m3u8');
         
         if (isHLS && Hls.isSupported()) {
+          console.log('Usando HLS.js para stream:', url);
           // Use HLS.js for HLS streams
           this.hls = new Hls({
             enableWorker: true,
@@ -2482,28 +2483,33 @@
           this.hls.attachMedia(video);
           
           this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            console.log('HLS manifest loaded');
+            console.log('HLS manifest carregado com sucesso');
           });
           
           this.hls.on(Hls.Events.ERROR, (event, data) => {
-            console.error('HLS Error:', data);
+            console.error('HLS Error:', data.type, data.details, data);
             if (data.fatal) {
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
-                  console.log('Network error, trying to recover...');
+                  console.log('Erro de rede HLS - URL pode estar bloqueada (CORS/HTTPS):', url);
+                  console.log('Tentando recuperar...');
                   this.hls.startLoad();
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
-                  console.log('Media error, trying to recover...');
+                  console.log('Erro de mídia HLS, tentando recuperar...');
                   this.hls.recoverMediaError();
                   break;
                 default:
-                  console.log('Fatal error, destroying HLS...');
+                  console.log('Erro fatal HLS, destruindo instância...');
                   this.hls.destroy();
                   break;
               }
             }
           });
+        } else if (isHLS && !Hls.isSupported() && video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Safari native HLS support
+          console.log('Usando HLS nativo (Safari):', url);
+          video.src = url;
         } else {
           // Use native video player for other formats
           let mimeType = 'video/mp4';
@@ -2661,8 +2667,23 @@
           if (saved) {
             this.config = JSON.parse(saved);
           }
+          // Normaliza protocolo para evitar Mixed Content
+          this.normalizeServerProtocol();
         } catch (error) {
           console.error('Erro ao carregar configuração:', error);
+        }
+      }
+
+      normalizeServerProtocol() {
+        // Se a página está em HTTPS, tenta usar HTTPS para o servidor
+        // Se falhar, o usuário precisa de um servidor com suporte HTTPS
+        if (window.location.protocol === 'https:' && this.config.server) {
+          const originalServer = this.config.server;
+          // Substitui http:// por https:// se a página está em HTTPS
+          if (this.config.server.startsWith('http://')) {
+            this.config.server = this.config.server.replace('http://', 'https://');
+            console.log('Protocolo do servidor normalizado de HTTP para HTTPS:', originalServer, '->', this.config.server);
+          }
         }
       }
 
@@ -3521,10 +3542,14 @@
       }
 
       playChannel(channel) {
+        console.log('=== playChannel chamado ===');
+        console.log('Canal:', channel.name, 'URL:', channel.url);
+        
         const progress = this.checkContinueWatching(channel.id, 'channel');
 
         const doPlay = (startTime = 0) => {
           try {
+            console.log('Iniciando reprodução do canal:', channel.url);
             this.animateLogo(); // NOVA LINHA - Anima a logo
             this.currentChannel = channel.id;
             this.currentMovie = null;
@@ -3539,7 +3564,11 @@
               if (startTime > 0) {
                 this.player.currentTime(startTime);
               }
-              this.player.play();
+              this.player.play().then(() => {
+                console.log('Reprodução iniciada com sucesso');
+              }).catch(err => {
+                console.error('Erro ao iniciar reprodução:', err);
+              });
             });
 
             document.getElementById('videoPlaceholder').style.display = 'none';
