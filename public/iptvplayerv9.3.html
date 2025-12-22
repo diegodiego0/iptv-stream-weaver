@@ -613,8 +613,8 @@
     /* EPG Info Styles - Nova linha após Reproduzindo agora */
     .epg-line {
       display: flex;
-      align-items: center;
-      gap: 0.5rem;
+      flex-direction: column;
+      gap: 0.3rem;
       margin-top: 0.4rem;
       padding: 0.4rem 0.6rem;
       background: linear-gradient(135deg, rgba(var(--primary-color-rgb, 0, 123, 255), 0.15), rgba(0, 0, 0, 0.3));
@@ -627,17 +627,15 @@
       from { opacity: 0; transform: translateY(-5px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    .epg-line-current {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
     .epg-line-icon {
       color: var(--primary-color);
       font-size: 0.7rem;
-    }
-    .epg-line-channel {
-      font-weight: 700;
-      color: var(--primary-color);
-      white-space: nowrap;
-    }
-    .epg-line-separator {
-      color: rgba(255, 255, 255, 0.3);
+      flex-shrink: 0;
     }
     .epg-line-program {
       color: var(--text-primary);
@@ -651,16 +649,7 @@
       color: rgba(255, 255, 255, 0.7);
       font-size: 0.65rem;
       white-space: nowrap;
-    }
-    .epg-line-live {
-      background: #e53935;
-      color: white;
-      font-size: 0.55rem;
-      padding: 0.1rem 0.35rem;
-      border-radius: 0.25rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      animation: pulse 2s infinite;
+      flex-shrink: 0;
     }
     .epg-line-loading {
       color: rgba(255, 255, 255, 0.5);
@@ -677,21 +666,20 @@
       display: flex;
       align-items: center;
       gap: 0.4rem;
-      margin-top: 0.25rem;
-      padding: 0.25rem 0.6rem;
       font-size: 0.65rem;
       color: rgba(255, 255, 255, 0.6);
+      padding-left: 0.2rem;
     }
     .epg-line-next-label {
       font-weight: 600;
       color: rgba(255, 255, 255, 0.5);
+      flex-shrink: 0;
     }
     .epg-line-next-title {
       flex: 1;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
     }
     .epg-current-title {
       font-weight: 600;
@@ -3232,7 +3220,7 @@
             </div>
             ${epgLineSection}
           </div>
-          ${isPlaying ? '<div class="playing-indicator">Tocando</div>' : ''}
+          ${isPlaying ? '<div class="playing-indicator">AO VIVO</div>' : ''}
           <button class="favorite-btn ${this.favorites.has(content.id) ? 'active' : ''}" 
                   data-content-id="${content.id}">
             <i class="fas fa-heart"></i>
@@ -3283,36 +3271,33 @@
           const endTime = this.formatEPGTime(epgData.current.end);
           
           let epgHTML = `
-            <i class="fas fa-tv epg-line-icon"></i>
-            <span class="epg-line-channel">${channelName}</span>
-            <span class="epg-line-separator">|</span>
-            <span class="epg-line-program">${epgData.current.title}</span>
-            <span class="epg-line-time">${startTime} - ${endTime}</span>
-            <span class="epg-line-live">AO VIVO</span>
+            <div class="epg-line-current">
+              <i class="fas fa-play-circle epg-line-icon"></i>
+              <span class="epg-line-program">${epgData.current.title}</span>
+              <span class="epg-line-time">${startTime} - ${endTime}</span>
+            </div>
           `;
-          
-          epgLine.innerHTML = epgHTML;
           
           // Adicionar linha do próximo programa se disponível
           if (epgData.next) {
             const nextStart = this.formatEPGTime(epgData.next.start);
-            const nextLine = document.createElement('div');
-            nextLine.className = 'epg-line-next';
-            nextLine.innerHTML = `
-              <i class="fas fa-clock"></i>
-              <span class="epg-line-next-label">A seguir:</span>
-              <span class="epg-line-next-title">${epgData.next.title}</span>
-              <span class="epg-line-time">${nextStart}</span>
+            epgHTML += `
+              <div class="epg-line-next">
+                <i class="fas fa-clock epg-line-icon"></i>
+                <span class="epg-line-next-label">A seguir:</span>
+                <span class="epg-line-next-title">${epgData.next.title}</span>
+                <span class="epg-line-time">${nextStart}</span>
+              </div>
             `;
-            epgLine.parentNode.insertBefore(nextLine, epgLine.nextSibling);
           }
+          
+          epgLine.innerHTML = epgHTML;
         } else {
           epgLine.innerHTML = `
-            <i class="fas fa-tv epg-line-icon"></i>
-            <span class="epg-line-channel">${channelName}</span>
-            <span class="epg-line-separator">|</span>
-            <span class="epg-line-loading">Sem programação disponível</span>
-            <span class="epg-line-live">AO VIVO</span>
+            <div class="epg-line-current">
+              <i class="fas fa-play-circle epg-line-icon"></i>
+              <span class="epg-line-loading">Sem programação disponível</span>
+            </div>
           `;
         }
       }
