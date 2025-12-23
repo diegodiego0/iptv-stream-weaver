@@ -19,6 +19,8 @@
       --text-primary: #ffffff;
       --text-secondary: #9CA3AF;
       --text-tertiary: #D1D5DB;
+      --custom-bg-url: none;
+      --custom-bg-overlay: rgba(0, 0, 0, 0.85);
     }
 
     /* Temas */
@@ -88,6 +90,46 @@
       padding: 0;
       height: 100%;
       overflow-x: hidden;
+    }
+    
+    /* Custom Background Theme */
+    body.has-custom-bg {
+      background-image: var(--custom-bg-url);
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      background-repeat: no-repeat;
+    }
+    
+    body.has-custom-bg::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--custom-bg-overlay);
+      z-index: -1;
+      pointer-events: none;
+    }
+    
+    body.has-custom-bg .header,
+    body.has-custom-bg .main-nav,
+    body.has-custom-bg .tab-bar,
+    body.has-custom-bg .content-list,
+    body.has-custom-bg .netflix-grid,
+    body.has-custom-bg #favoritesSection,
+    body.has-custom-bg #channelsSection,
+    body.has-custom-bg #moviesSection,
+    body.has-custom-bg #seriesSection,
+    body.has-custom-bg #radiosSection {
+      background-color: transparent !important;
+    }
+    
+    body.has-custom-bg .content-item,
+    body.has-custom-bg .netflix-card {
+      background: rgba(0, 0, 0, 0.6) !important;
+      backdrop-filter: blur(10px);
     }
     
     /* Header Styles - SEMPRE NO TOPO EM PAISAGEM */
@@ -2346,7 +2388,7 @@
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Adicionar Playlist</h5>
+          <h5 class="modal-title">Configurações</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
@@ -2355,6 +2397,20 @@
               <label for="playlistUrl" class="form-label">URL da Playlist</label>
               <input type="url" class="form-control" id="playlistUrl" placeholder="http://exemplo.com/get.php?username=user&password=pass&type=m3u_plus&output=ts" required>
               <div class="form-text">Cole a URL completa da sua playlist IPTV</div>
+            </div>
+            <hr style="border-color: rgba(255,255,255,0.2);">
+            <div class="mb-3">
+              <label for="customBgUrl" class="form-label">
+                <i class="fas fa-image me-1"></i> URL do Background Personalizado (opcional)
+              </label>
+              <input type="url" class="form-control" id="customBgUrl" placeholder="https://exemplo.com/imagem.jpg">
+              <div class="form-text">Deixe vazio para usar o tema padrão. Cole uma URL de imagem para personalizar o fundo.</div>
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="enableCustomBg">
+              <label class="form-check-label" for="enableCustomBg">
+                Ativar background personalizado
+              </label>
             </div>
           </form>
         </div>
@@ -2422,6 +2478,49 @@
     function loadTheme() {
       const savedTheme = localStorage.getItem('iptv-theme') || 'verde';
       document.body.setAttribute('data-theme', savedTheme);
+    }
+
+    // Custom Background Functions
+    function loadCustomBackground() {
+      const bgUrl = localStorage.getItem('iptv-custom-bg-url');
+      const bgEnabled = localStorage.getItem('iptv-custom-bg-enabled') === 'true';
+      
+      if (bgUrl && bgEnabled) {
+        applyCustomBackground(bgUrl);
+      } else {
+        removeCustomBackground();
+      }
+      
+      // Update form fields
+      const urlInput = document.getElementById('customBgUrl');
+      const enableCheck = document.getElementById('enableCustomBg');
+      if (urlInput) urlInput.value = bgUrl || '';
+      if (enableCheck) enableCheck.checked = bgEnabled;
+    }
+
+    function applyCustomBackground(url) {
+      if (!url) return;
+      document.documentElement.style.setProperty('--custom-bg-url', `url('${url}')`);
+      document.body.classList.add('has-custom-bg');
+    }
+
+    function removeCustomBackground() {
+      document.documentElement.style.setProperty('--custom-bg-url', 'none');
+      document.body.classList.remove('has-custom-bg');
+    }
+
+    function saveCustomBackground() {
+      const bgUrl = document.getElementById('customBgUrl').value.trim();
+      const bgEnabled = document.getElementById('enableCustomBg').checked;
+      
+      localStorage.setItem('iptv-custom-bg-url', bgUrl);
+      localStorage.setItem('iptv-custom-bg-enabled', bgEnabled.toString());
+      
+      if (bgUrl && bgEnabled) {
+        applyCustomBackground(bgUrl);
+      } else {
+        removeCustomBackground();
+      }
     }
 
     // Favorites Backend Class
@@ -2819,6 +2918,8 @@
 
         // Add playlist button
         document.getElementById('addPlaylistBtn').addEventListener('click', () => {
+          // Load current background settings into form
+          loadCustomBackground();
           const modal = new bootstrap.Modal(document.getElementById('playlistModal'));
           modal.show();
         });
@@ -4958,9 +5059,16 @@
 
       async savePlaylist() {
         try {
+          // Save custom background settings first
+          saveCustomBackground();
+          
           const url = document.getElementById('playlistUrl').value.trim();
+          
+          // If no playlist URL, just close the modal
           if (!url) {
-            this.showError('Por favor, insira uma URL válida');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('playlistModal'));
+            modal.hide();
+            this.showSuccess('Configurações salvas!');
             return;
           }
 
@@ -4981,7 +5089,7 @@
             this.loadSeriesCategories()
           ]);
 
-          this.showSuccess('Playlist adicionada com sucesso!');
+          this.showSuccess('Playlist e configurações salvas com sucesso!');
         } catch (error) {
           console.error('Erro ao salvar playlist:', error);
           this.showError(error.message);
@@ -5151,6 +5259,7 @@
         return false;
       });
       loadTheme();
+      loadCustomBackground();
       iptvApp = new IPTVApp();
     });
   </script>
