@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV SILVA - Player IPTV</title>
+    
+    <!-- Video.js CSS -->
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Players Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dash.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/shaka-player@latest"></script>
+    
+    <style>
+        :root {
+            --category-width: 180px;
+            --primary-red: #cc1818;
+            --primary-gradient: linear-gradient(135deg, #cc1818 0%, #ff4b4b 100%);
+            --dark-bg: #000000;
+            --card-bg: #1a1a1a;
+            --card-hover: #2a2a2a;
+            --border-radius: 12px;
+            --transition-speed: 0.3s;
+            --glow-color: rgba(204, 24, 24, 0.5);
+            --header-height: 55px;
+        }
+
+        body {
+            background: linear-gradient(to bottom, #000000, #1a1a1a);
+            color: white;
+            font-family: 'Inter', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        /* ========== HEADER STYLES (NOVO) ========== */
+        .app-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--header-height);
+            background: linear-gradient(to right, #0a0a0a, #1a1a1a);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            z-index: 1001;
+            border-bottom: 2px solid var(--primary-red);
+            box-shadow: 0 4px 20px rgba(204, 24, 24, 0.3);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .app-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .search-container {
+            flex: 1;
+            max-width: 350px;
+            margin: 0 15px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid rgba(204, 24, 24, 0.3);
+            border-radius: var(--border-radius);
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 0.9em;
+            transition: all var(--transition-speed) ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-red);
+            box-shadow: 0 0 15px var(--glow-color);
+        }
+
+        .search-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .add-url-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            border: none;
+            color: white;
+            font-size: 1.4em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-speed) ease;
+            box-shadow: 0 4px 15px var(--glow-color);
+        }
+
+        .add-url-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px var(--glow-color);
+        }
+
+        /* ========== URL MODAL (NOVO) ========== */
+        .url-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .url-modal.active {
+            display: flex;
+        }
+
+        .url-modal-content {
+            background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
+            padding: 30px;
+            border-radius: var(--border-radius);
+            width: 90%;
+            max-width: 500px;
+            border: 2px solid var(--primary-red);
+            box-shadow: 0 10px 40px var(--glow-color);
+            animation: modalFadeIn 0.3s ease;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.9) translateY(-20px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .url-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .url-modal-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: white;
+        }
+
+        .url-modal-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+        }
+
+        .url-modal-close:hover {
+            background: var(--primary-red);
+            transform: rotate(90deg);
+        }
+
+        .url-input-group {
+            margin-bottom: 20px;
+        }
+
+        .url-input-label {
+            display: block;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9em;
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid rgba(204, 24, 24, 0.3);
+            border-radius: var(--border-radius);
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 0.95em;
+            transition: all var(--transition-speed) ease;
+            box-sizing: border-box;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: var(--primary-red);
+            box-shadow: 0 0 15px var(--glow-color);
+        }
+
+        .url-submit-btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: var(--border-radius);
+            color: white;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            box-shadow: 0 4px 15px var(--glow-color);
+        }
+
+        .url-submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px var(--glow-color);
+        }
+
+        .current-url-display {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            font-size: 0.85em;
+            color: rgba(255, 255, 255, 0.6);
+            word-break: break-all;
+        }
+
+        .current-url-display strong {
+            color: var(--primary-red);
+        }
+
+        /* ========== WELCOME MESSAGE (NOVO) ========== */
+        .welcome-message {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: rgba(255, 255, 255, 0.7);
+            z-index: 100;
+        }
+
+        .welcome-message.visible {
+            display: block;
+        }
+
+        .welcome-message h2 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .welcome-message p {
+            font-size: 1em;
+            opacity: 0.7;
+        }
+
+        /* ========== HIDDEN CLASS FOR SEARCH (NOVO) ========== */
+        .item.hidden {
+            display: none !important;
+        }
+
+        .category-title.hidden {
+            display: none !important;
+        }
+
+        /* ========== PLAYER CONTAINER (ORIGINAL - AJUSTADO) ========== */
+        #player-container {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: 100%;
+            height: 56.25vw;
+            background-color: rgba(0, 0, 0, 0.95);
+            z-index: 999;
+            box-shadow: 0 4px 20px rgba(204, 24, 24, 0.3);
+            border-bottom: 2px solid var(--primary-red);
+        }
+
+        .video-js {
+            width: 100%;
+            height: 100%;
+            box-shadow: 0 0 30px rgba(204, 24, 24, 0.2);
+        }
+
+        .vjs-error-display {
+            display: none;
+        }
+
+        .logo {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            width: 40px;
+            display: none;
+            z-index: 1000;
+            filter: drop-shadow(0 2px 8px rgba(204, 24, 24, 0.6));
+            transition: transform 0.3s ease;
+        }
+
+        .logo:hover {
+            transform: scale(1.1);
+        }
+
+        /* ========== CATEGORY SECTION (ORIGINAL - AJUSTADO) ========== */
+        .category-section {
+            display: flex;
+            margin-top: calc(56.25vw + var(--header-height));
+            width: 100%;
+            height: calc(100vh - 56.25vw - var(--header-height));
+            background: linear-gradient(to right, #000000, #1a1a1a);
+        }
+
+        .category-list {
+            width: var(--category-width);
+            min-width: var(--category-width);
+            background: linear-gradient(to right, #000000, #0d0d0d);
+            height: calc(100vh - 56.25vw - var(--header-height) - 20px);
+            overflow-y: auto;
+            position: fixed;
+            left: 0;
+            padding: 15px 10px 50px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary-red) var(--card-bg);
+            border-right: 1px solid rgba(204, 24, 24, 0.2);
+        }
+
+        .category-title {
+            padding: 12px;
+            margin: 8px 0;
+            background: linear-gradient(145deg, var(--card-bg), #222);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            font-size: 0.95em;
+            color: #fff;
+            border-left: 4px solid var(--primary-red);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .category-title:hover {
+            background: linear-gradient(145deg, var(--card-hover), #333);
+            transform: translateX(5px);
+            box-shadow: 0 6px 20px rgba(204, 24, 24, 0.15);
+        }
+
+        .category-title::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transform: translateX(-100%);
+        }
+
+        .category-title:hover::after {
+            transform: translateX(100%);
+            transition: transform 0.6s ease;
+        }
+
+        #itemListContainer {
+            flex: 1;
+            margin-left: var(--category-width);
+            padding: 15px;
+            overflow-y: auto;
+            background: linear-gradient(to right, #0d0d0d, #1a1a1a);
+            height: calc(100% - 20px);
+        }
+
+        .item-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: linear-gradient(145deg, var(--card-bg), #222);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            margin: 0;
+            border-left: 4px solid var(--primary-red);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .item:hover {
+            background: linear-gradient(145deg, var(--card-hover), #333);
+            transform: translateX(5px);
+            box-shadow: 0 6px 20px rgba(204, 24, 24, 0.15);
+        }
+
+        .item::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transform: translateX(-100%);
+        }
+
+        .item:hover::after {
+            transform: translateX(100%);
+            transition: transform 0.6s ease;
+        }
+
+        .item img {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            margin-right: 15px;
+            border: 2px solid rgba(204, 24, 24, 0.3);
+            transition: all var(--transition-speed) ease;
+            object-fit: cover;
+        }
+
+        .item:hover img {
+            transform: scale(1.1);
+            border-color: var(--primary-red);
+            box-shadow: 0 0 15px var(--glow-color);
+        }
+
+        .item span {
+            color: white;
+            font-size: 1em;
+            font-weight: 500;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid var(--primary-red);
+            border-top: 5px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 768px) {
+            .app-title {
+                display: none;
+            }
+
+            .search-container {
+                margin: 0 10px;
+            }
+
+            .category-list {
+                width: 140px;
+                min-width: 140px;
+            }
+
+            #itemListContainer {
+                margin-left: 140px;
+            }
+
+            .category-title {
+                padding: 10px;
+                font-size: 0.9em;
+            }
+
+            .item {
+                padding: 8px;
+            }
+
+            .item img {
+                width: 35px;
+                height: 35px;
+                margin-right: 10px;
+            }
+
+            .item span {
+                font-size: 0.9em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .category-list {
+                width: 120px;
+                min-width: 120px;
+            }
+
+            #itemListContainer {
+                margin-left: 120px;
+            }
+
+            .category-title {
+                padding: 8px;
+                font-size: 0.85em;
+            }
+
+            .item img {
+                width: 30px;
+                height: 30px;
+            }
+
+            .item span {
+                font-size: 0.85em;
+            }
+
+            .url-modal-content {
+                padding: 20px;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--card-bg);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-red);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ff4b4b;
+        }
+
+        .error-message {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary-red);
+            color: white;
+            padding: 10px 20px;
+            border-radius: var(--border-radius);
+            z-index: 9999;
+            animation: fadeIn 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <!-- ========== HEADER (NOVO) ========== -->
+    <header class="app-header">
+        <div class="header-left">
+            <span class="app-title">📺 TV SILVA</span>
+        </div>
+        
+        <div class="search-container">
+            <input type="text" class="search-input" id="searchInput" placeholder="🔍 Buscar canais...">
+        </div>
+        
+        <div class="header-right">
+            <button class="add-url-btn" id="addUrlBtn" title="Configurar URL">+</button>
+        </div>
+    </header>
+
+    <!-- ========== URL MODAL (NOVO) ========== -->
+    <div class="url-modal" id="urlModal">
+        <div class="url-modal-content">
+            <div class="url-modal-header">
+                <span class="url-modal-title">⚙️ Configurar Playlist</span>
+                <button class="url-modal-close" id="urlModalClose">×</button>
+            </div>
+            
+            <div class="url-input-group">
+                <label class="url-input-label">URL da Playlist M3U:</label>
+                <input type="text" class="url-input" id="playlistUrlInput" 
+                    placeholder="http://exemplo.com/get.php?username=user&password=pass&type=m3u_plus">
+            </div>
+            
+            <button class="url-submit-btn" id="urlSubmitBtn">🚀 Carregar Playlist</button>
+            
+            <div class="current-url-display" id="currentUrlDisplay" style="display: none;">
+                <strong>URL atual:</strong> <span id="currentUrlText"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== WELCOME MESSAGE (NOVO) ========== -->
+    <div class="welcome-message" id="welcomeMessage">
+        <h2>Bem-vindo ao TV SILVA</h2>
+        <p>Clique no botão + para adicionar sua playlist IPTV</p>
+    </div>
+
+    <!-- ========== LOADING OVERLAY (ORIGINAL) ========== -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- ========== PLAYER CONTAINER (ORIGINAL) ========== -->
+    <div id="player-container">
+        <video id="videoPlayer" class="video-js vjs-default-skin vjs-big-play-centered" playsinline>
+            <p class="vjs-no-js">Para ver este vídeo, ative o JavaScript e considere atualizar para um navegador que suporte vídeo HTML5</p>
+        </video>
+        <img id="channelLogo" class="logo" src="https://i.ibb.co/wYHRkPj/Text-Toos-Apk.png" alt="Logo">
+    </div>
+
+    <!-- ========== CATEGORY SECTION (ORIGINAL) ========== -->
+    <div class="category-section">
+        <div class="category-list" id="categoryList"></div>
+        <div id="itemListContainer"></div>
+    </div>
+
+    <!-- ========== SCRIPTS (ORIGINAL) ========== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // ========== VARIÁVEIS (ORIGINAL + NOVO) ==========
+            let inputUrl = '';
+            let cachedData = {};
+            let displayedCategories = new Set();
+            let urlOrigin;
+            let username, password;
+            const categoryList = document.getElementById('categoryList');
+            const itemListContainer = document.getElementById('itemListContainer');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const channelLogo = document.getElementById('channelLogo');
+            
+            // Novos elementos
+            const searchInput = document.getElementById('searchInput');
+            const addUrlBtn = document.getElementById('addUrlBtn');
+            const urlModal = document.getElementById('urlModal');
+            const urlModalClose = document.getElementById('urlModalClose');
+            const playlistUrlInput = document.getElementById('playlistUrlInput');
+            const urlSubmitBtn = document.getElementById('urlSubmitBtn');
+            const currentUrlDisplay = document.getElementById('currentUrlDisplay');
+            const currentUrlText = document.getElementById('currentUrlText');
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            
+            // ========== CONFIGURAÇÃO DO PLAYER (ORIGINAL) ==========
+            const player = videojs('videoPlayer', {
+                fluid: true,
+                html5: {
+                    hls: {
+                        enableLowInitialPlaylist: true,
+                        smoothQualityChange: true,
+                        overrideNative: true,
+                        maxBufferLength: 30,
+                        maxMaxBufferLength: 600,
+                        fastQualityChange: true,
+                    }
+                },
+                liveui: true,
+                responsive: true,
+                playbackRates: [0.5, 1, 1.5, 2],
+                controlBar: {
+                    children: [
+                        'playToggle',
+                        'volumePanel',
+                        'currentTimeDisplay',
+                        'timeDivider',
+                        'durationDisplay',
+                        'progressControl',
+                        'liveDisplay',
+                        'remainingTimeDisplay',
+                        'customControlSpacer',
+                        'playbackRateMenuButton',
+                        'qualitySelector',
+                        'fullscreenToggle'
+                    ]
+                }
+            });
+
+            // ========== USER AGENTS (ORIGINAL) ==========
+            const userAgents = [
+                'MXPlayer/1.86.0 (Linux; Android 14; pt-BR; SM-A057M Build/UP1A.231005.007.A057MUBS6CXJ2)',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1',
+                'Mozilla/5.0 (iPad; CPU OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1',
+                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Safari/605.1.15',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0 Safari/537.36'
+            ];
+
+            function getRandomUserAgent() {
+                return userAgents[Math.floor(Math.random() * userAgents.length)];
+            }
+
+            // ========== FUNÇÕES DO MODAL URL (NOVO) ==========
+            addUrlBtn.addEventListener('click', () => {
+                urlModal.classList.add('active');
+                if (inputUrl) {
+                    playlistUrlInput.value = inputUrl;
+                    currentUrlDisplay.style.display = 'block';
+                    currentUrlText.textContent = inputUrl.length > 60 ? inputUrl.substring(0, 60) + '...' : inputUrl;
+                }
+            });
+
+            urlModalClose.addEventListener('click', () => {
+                urlModal.classList.remove('active');
+            });
+
+            urlModal.addEventListener('click', (e) => {
+                if (e.target === urlModal) {
+                    urlModal.classList.remove('active');
+                }
+            });
+
+            urlSubmitBtn.addEventListener('click', () => {
+                const url = playlistUrlInput.value.trim();
+                if (url) {
+                    inputUrl = url;
+                    localStorage.setItem('tvsilva_playlist_url', url);
+                    urlModal.classList.remove('active');
+                    loadPlaylist(url);
+                }
+            });
+
+            playlistUrlInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    urlSubmitBtn.click();
+                }
+            });
+
+            // ========== FUNÇÃO DE BUSCA (NOVO) ==========
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase().trim();
+                filterChannels(searchTerm);
+            });
+
+            function filterChannels(searchTerm) {
+                const items = document.querySelectorAll('.item');
+                const categories = document.querySelectorAll('.category-title');
+                const itemLists = document.querySelectorAll('.item-list');
+                
+                if (!searchTerm) {
+                    items.forEach(item => item.classList.remove('hidden'));
+                    categories.forEach(cat => cat.classList.remove('hidden'));
+                    itemLists.forEach(list => list.style.display = 'none');
+                    return;
+                }
+
+                items.forEach(item => {
+                    const name = item.querySelector('span').textContent.toLowerCase();
+                    if (name.includes(searchTerm)) {
+                        item.classList.remove('hidden');
+                    } else {
+                        item.classList.add('hidden');
+                    }
+                });
+
+                itemLists.forEach((list, index) => {
+                    const visibleItems = list.querySelectorAll('.item:not(.hidden)');
+                    const category = categories[index];
+                    
+                    if (visibleItems.length > 0) {
+                        if (category) category.classList.remove('hidden');
+                        list.style.display = 'flex';
+                    } else {
+                        if (category) category.classList.add('hidden');
+                        list.style.display = 'none';
+                    }
+                });
+            }
+
+            // ========== FUNÇÃO PARA CARREGAR PLAYLIST (NOVO) ==========
+            function loadPlaylist(url) {
+                cachedData = {};
+                displayedCategories = new Set();
+                categoryList.innerHTML = '';
+                itemListContainer.innerHTML = '';
+                welcomeMessage.classList.remove('visible');
+                
+                try {
+                    const parsedUrl = new URL(url.trim());
+                    const params = new URLSearchParams(parsedUrl.search);
+                    username = params.get('username');
+                    password = params.get('password');
+                    // ORIGINAL: urlOrigin = parsedUrl.origin;
+                    urlOrigin = normalizeOrigin(parsedUrl.origin);
+                    
+                    if (!username || !password) {
+                        throw new Error('Credenciais inválidas');
+                    }
+
+                    currentUrlDisplay.style.display = 'block';
+                    currentUrlText.textContent = url.length > 60 ? url.substring(0, 60) + '...' : url;
+
+                    console.log('URL Origin:', urlOrigin);
+                    console.log('Username:', username);
+
+                    fetchCategories();
+                } catch (error) {
+                    showError(error.message);
+                    loadingOverlay.style.display = 'none';
+                }
+            }
+
+            // ========== HELPERS (ADICIONAL - NÃO REMOVE O ORIGINAL) ==========
+            let isAutoRetrying = false;
+
+            function normalizeOrigin(origin) {
+                try {
+                    let o = String(origin || '').trim();
+                    o = o.replace(/\/+$/, '');
+
+                    // Se esta página está em HTTPS, HTTP tende a falhar (Mixed Content).
+                    if (window.location.protocol === 'https:' && o.startsWith('http://')) {
+                        return 'https://' + o.slice('http://'.length);
+                    }
+
+                    return o;
+                } catch (e) {
+                    return origin;
+                }
+            }
+
+            function getExtensionFromUrl(url) {
+                const clean = String(url || '').split('?')[0].split('#')[0];
+                const parts = clean.split('.');
+                if (parts.length < 2) return '';
+                return String(parts.pop() || '').toLowerCase();
+            }
+
+            function uniqStrings(list) {
+                return Array.from(new Set((list || []).filter(Boolean)));
+            }
+
+            function buildLiveCandidateUrls(item) {
+                const candidates = [];
+
+                // 1) Se a API já trouxer uma URL direta, prioriza.
+                if (item && typeof item.direct_source === 'string' && item.direct_source.trim()) {
+                    candidates.push(item.direct_source.trim());
+                }
+
+                const extFromItem = (item && item.container_extension ? String(item.container_extension) : '')
+                    .replace(/^\./, '')
+                    .toLowerCase();
+
+                // 2) Tenta extensões comuns (m3u8/ts/mp4/etc.)
+                // Nota: mkv/avi costumam NÃO ser suportados em navegadores (mas fica como tentativa).
+                const extsToTry = uniqStrings([
+                    extFromItem,
+                    'm3u8',
+                    'ts',
+                    'm3u',
+                    'mp4',
+                    'mkv',
+                    'avi',
+                ]);
+
+                // Padrão Xtream Codes: /live/user/pass/id.ext
+                for (const ext of extsToTry) {
+                    candidates.push(`${urlOrigin}/live/${username}/${password}/${item.stream_id}.${ext}`);
+                }
+
+                // Alguns servidores aceitam sem extensão
+                candidates.push(`${urlOrigin}/live/${username}/${password}/${item.stream_id}`);
+
+                return uniqStrings(candidates);
+            }
+
+            function isProbablyMixedContent(url) {
+                return window.location.protocol === 'https:' && String(url || '').startsWith('http://');
+            }
+
+            // ========== FUNÇÃO PARA REMOVER PREFIXOS (ORIGINAL) ==========
+            function removePrefixesFromName(categoryName) {
+                const prefixesToHide = [
+                    "CANAIS | ",
+                    "CANAIS •  ",
+                    "Canais | ",
+                    "📡 CANAIS | ",
+                    "🎬 CANAIS | ",
+                    "🍿 CANAIS | ",
+                    "⭐ CANAIS | ",
+                    "🎯 CANAIS | ",
+                    "🔥 CANAIS | ",
+                    "💎 CANAIS | ",
+                    "👑 CANAIS | ",
+                    "🌟 CANAIS | ",
+                    "✅ CANAIS | ",
+                    "🚀 CANAIS | ",
+                    "🏆 CANAIS | ",
+                    "💫 CANAIS | ",
+                    "🎪 CANAIS | ",
+                    "🎊 CANAIS | ",
+                    "🎉 CANAIS | ",
+                    "CANAIS | ",
+                    "✨ CANAIS |",
+                    "📺 CANAIS |",
+                    "🔴 CANAIS |",
+                    "📡 CANAIS |",
+                    "🎬 CANAIS |",
+                    "🍿 CANAIS |",
+                    "⭐ CANAIS |",
+                    "🎯 CANAIS |",
+                    "🔥 CANAIS |",
+                    "💎 CANAIS |",
+                    "👑 CANAIS |",
+                    "🌟 CANAIS |",
+                    "✅ CANAIS |",
+                    "🚀 CANAIS |",
+                    "🏆 CANAIS |",
+                    "💫 CANAIS |",
+                    "🎪 CANAIS |",
+                    "🎊 CANAIS |",
+                    "🎉 CANAIS |",
+                    "CANAIS |"
+                ];
+                
+                let displayName = categoryName;
+                const sortedPrefixes = prefixesToHide.sort((a, b) => b.length - a.length);
+                
+                for (const prefix of sortedPrefixes) {
+                    if (displayName.startsWith(prefix)) {
+                        displayName = displayName.substring(prefix.length);
+                        break;
+                    }
+                }
+                
+                return displayName.trim();
+            }
+
+            // ========== FUNÇÃO DE ERRO (ORIGINAL) ==========
+            function showError(message) {
+                console.log('Erro:', message);
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = message;
+                document.body.appendChild(errorDiv);
+                
+                setTimeout(() => {
+                    if (errorDiv.parentNode) {
+                        errorDiv.parentNode.removeChild(errorDiv);
+                    }
+                }, 5000);
+            }
+
+            // ========== FETCH CATEGORIES (ORIGINAL) ==========
+            async function fetchCategories() {
+                loadingOverlay.style.display = 'flex';
+                try {
+                    console.log('Buscando categorias...');
+                    const response = await axios.get(
+                        `${urlOrigin}/player_api.php?username=${username}&password=${password}&action=get_live_categories`,
+                        {
+                            timeout: 15000,
+                            headers: {
+                                'User-Agent': getRandomUserAgent()
+                            }
+                        }
+                    );
+
+                    console.log('Resposta das categorias:', response.data);
+
+                    if (Array.isArray(response.data) && response.data.length > 0) {
+                        console.log(`Encontradas ${response.data.length} categorias`);
+                        
+                        const promises = response.data.map(category => fetchItems(category));
+                        await Promise.allSettled(promises);
+                        
+                        console.log('Todas as categorias processadas');
+                    } else {
+                        throw new Error('Nenhuma categoria encontrada');
+                    }
+                } catch (error) {
+                    console.error('Erro ao buscar categorias:', error);
+                    showError('Erro ao carregar categorias: ' + error.message);
+                } finally {
+                    loadingOverlay.style.display = 'none';
+                }
+            }
+
+            // ========== FETCH ITEMS (ORIGINAL) ==========
+            async function fetchItems(category) {
+                try {
+                    console.log(`Buscando itens para categoria: ${category.category_name}`);
+                    
+                    if (cachedData[category.category_name]) {
+                        displayCategory(category.category_name, cachedData[category.category_name]);
+                        return;
+                    }
+
+                    const response = await axios.get(
+                        `${urlOrigin}/player_api.php?username=${username}&password=${password}&action=get_live_streams&category_id=${category.category_id}`,
+                        {
+                            timeout: 15000,
+                            headers: {
+                                'User-Agent': getRandomUserAgent()
+                            }
+                        }
+                    );
+
+                    const items = Array.isArray(response.data) ? response.data : [];
+                    console.log(`Encontrados ${items.length} itens para ${category.category_name}`);
+                    cachedData[category.category_name] = items;
+                    displayCategory(category.category_name, items);
+                    
+                } catch (error) {
+                    console.error(`Erro ao carregar itens da categoria ${category.category_name}:`, error);
+                    displayCategory(category.category_name, []);
+                    cachedData[category.category_name] = [];
+                }
+            }
+
+            // ========== DISPLAY CATEGORY (ORIGINAL) ==========
+            function displayCategory(categoryName, items) {
+                if (displayedCategories.has(categoryName)) {
+                    return;
+                }
+                displayedCategories.add(categoryName);
+
+                const displayName = removePrefixesFromName(categoryName);
+                const finalDisplayName = displayName || categoryName;
+                console.log(`Exibindo categoria: ${finalDisplayName} (${items.length} itens)`);
+
+                const categoryTitle = document.createElement('div');
+                categoryTitle.className = 'category-title';
+                categoryTitle.textContent = finalDisplayName;
+
+                const itemList = document.createElement('div');
+                itemList.className = 'item-list';
+                itemList.style.display = 'none';
+
+                categoryTitle.addEventListener('click', () => {
+                    const isVisible = itemList.style.display === 'flex';
+                    document.querySelectorAll('.item-list').forEach(list => list.style.display = 'none');
+                    itemList.style.display = isVisible ? 'none' : 'flex';
+                });
+
+                items.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'item';
+
+                    const itemImg = document.createElement('img');
+                    itemImg.src = item.stream_icon || 'https://i.ibb.co/wYHRkPj/Text-Toos-Apk.png';
+                    itemImg.alt = item.name;
+                    itemImg.onerror = () => {
+                        itemImg.src = 'https://i.ibb.co/wYHRkPj/Text-Toos-Apk.png';
+                    };
+
+                    const itemName = document.createElement('span');
+                    itemName.textContent = item.name;
+
+                    itemDiv.appendChild(itemImg);
+                    itemDiv.appendChild(itemName);
+
+                    itemDiv.addEventListener('click', () => {
+                        playVideo(item);
+                    });
+
+                    itemList.appendChild(itemDiv);
+                });
+
+                itemListContainer.appendChild(itemList);
+                categoryList.appendChild(categoryTitle);
+            }
+
+            // ========== DETECT VIDEO TYPE (ORIGINAL) ==========
+            function detectVideoType(url) {
+                // ORIGINAL:
+                // const extension = url.split('.').pop().toLowerCase();
+
+                const extension = getExtensionFromUrl(url);
+
+                const typeMap = {
+                    'm3u8': 'application/x-mpegURL',
+                    'm3u': 'application/x-mpegURL',
+                    'mpd': 'application/dash+xml',
+                    'mp4': 'video/mp4',
+                    'webm': 'video/webm',
+                    'ogv': 'video/ogg',
+
+                    // Observação: alguns formatos (ex.: mkv/avi) raramente tocam no navegador.
+                    'mkv': 'video/x-matroska',
+                    'avi': 'video/x-msvideo',
+
+                    // ORIGINAL: 'ts': 'video/MP2T'
+                    'ts': 'video/mp2t',
+                };
+
+                return typeMap[extension] || 'application/x-mpegURL';
+            }
+
+            // ========== PLAY VIDEO (ORIGINAL) ==========
+            function playVideo(item) {
+                // ORIGINAL (mantido aqui para preservar o código):
+                /*
+                console.log('Reproduzindo:', item.name, 'ID:', item.stream_id);
+
+                const videoUrl = `${urlOrigin}/live/${username}/${password}/${item.stream_id}.m3u8`;
+                console.log('URL do vídeo:', videoUrl);
+
+                player.src({
+                    src: videoUrl,
+                    type: 'application/x-mpegURL',
+                    withCredentials: false
+                });
+
+                player.ready(() => {
+                    player.play().then(() => {
+                        console.log('Reprodução iniciada com sucesso');
+                        channelLogo.style.display = 'block';
+                    }).catch(error => {
+                        console.error('Erro ao reproduzir:', error);
+                        showError('Erro ao iniciar a reprodução: ' + error.message);
+                        
+                        const altUrl = `${urlOrigin}/live/${username}/${password}/${item.stream_id}.ts`;
+                        console.log('Tentando formato alternativo:', altUrl);
+                        
+                        player.src({
+                            src: altUrl,
+                            type: 'video/MP2T',
+                            withCredentials: false
+                        });
+                        
+                        player.play().catch(e => {
+                            console.error('Erro no formato alternativo:', e);
+                            showError('Não foi possível reproduzir o vídeo');
+                        });
+                    });
+                });
+
+                player.poster('https://i.ibb.co/wYHRkPj/Text-Toos-Apk.png');
+                */
+
+                console.log('Reproduzindo:', item.name, 'ID:', item.stream_id);
+
+                const candidates = buildLiveCandidateUrls(item);
+                console.log('URLs candidatas:', candidates);
+
+                // Caso apareça HTTP aqui, a página em HTTPS vai bloquear.
+                if (candidates.some(isProbablyMixedContent)) {
+                    isAutoRetrying = false;
+                    showError('Servidor IPTV em HTTP bloqueado em páginas HTTPS (mixed content). Use HTTPS no servidor/playlist.');
+                    return;
+                }
+
+                isAutoRetrying = true;
+                let attemptIndex = 0;
+
+                const tryNext = () => {
+                    if (attemptIndex >= candidates.length) {
+                        isAutoRetrying = false;
+                        showError('Não foi possível reproduzir o vídeo. Possível CORS/HTTPS no servidor IPTV.');
+                        return;
+                    }
+
+                    const url = candidates[attemptIndex++];
+                    const type = detectVideoType(url);
+
+                    console.log(`Tentativa ${attemptIndex}/${candidates.length}:`, url, 'type:', type);
+
+                    try {
+                        player.pause();
+                        if (typeof player.reset === 'function') player.reset();
+                    } catch (_) {}
+
+                    player.src({
+                        src: url,
+                        type,
+                        withCredentials: false
+                    });
+
+                    // Força reload do source antes do play.
+                    if (typeof player.load === 'function') {
+                        player.load();
+                    }
+
+                    player.play()
+                        .then(() => {
+                            console.log('Reprodução iniciada com sucesso');
+                            channelLogo.style.display = 'block';
+                            isAutoRetrying = false;
+                        })
+                        .catch((error) => {
+                            console.error('Erro ao iniciar a reprodução:', error);
+                            // Tenta próximo formato/URL
+                            tryNext();
+                        });
+                };
+
+                tryNext();
+                player.poster('https://i.ibb.co/wYHRkPj/Text-Toos-Apk.png');
+            }
+
+            // ========== EVENT LISTENERS DO PLAYER (ORIGINAL) ==========
+            player.on('error', function(error) {
+                const errObj = typeof player.error === 'function' ? player.error() : null;
+                console.error('Erro do player:', error, errObj);
+
+                // Durante tentativas automáticas de fallback, evita spammar alertas.
+                if (isAutoRetrying) return;
+
+                showError('Erro na reprodução do vídeo');
+            });
+
+            player.on('loadstart', function() {
+                console.log('Iniciando carregamento...');
+            });
+
+            player.on('waiting', function() {
+                console.log('Buffering...');
+            });
+
+            player.on('canplay', function() {
+                console.log('Vídeo pronto para reproduzir');
+            });
+
+            player.on('pause', function() {
+                channelLogo.style.display = 'none';
+            });
+
+            player.on('ended', function() {
+                channelLogo.style.display = 'none';
+            });
+
+            player.on('fullscreenchange', function() {
+                channelLogo.style.display = player.isFullscreen() ? 'block' : 'none';
+            });
+
+            // ========== INICIALIZAÇÃO (NOVO) ==========
+            // Verifica se há URL salva no localStorage
+            const savedUrl = localStorage.getItem('tvsilva_playlist_url');
+            if (savedUrl) {
+                inputUrl = savedUrl;
+                playlistUrlInput.value = savedUrl;
+                loadPlaylist(savedUrl);
+            } else {
+                // Mostra mensagem de boas-vindas
+                loadingOverlay.style.display = 'none';
+                welcomeMessage.classList.add('visible');
+            }
+
+        });
+    </script>
+</body>
+</html>
