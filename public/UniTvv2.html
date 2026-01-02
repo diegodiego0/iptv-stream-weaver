@@ -718,7 +718,6 @@
                         'remainingTimeDisplay',
                         'customControlSpacer',
                         'playbackRateMenuButton',
-                        'qualitySelector',
                         'fullscreenToggle'
                     ]
                 }
@@ -823,7 +822,7 @@
                 categoryList.innerHTML = '';
                 itemListContainer.innerHTML = '';
                 welcomeMessage.classList.remove('visible');
-                
+
                 try {
                     const parsedUrl = new URL(url.trim());
                     const params = new URLSearchParams(parsedUrl.search);
@@ -831,16 +830,23 @@
                     password = params.get('password');
                     // ORIGINAL: urlOrigin = parsedUrl.origin;
                     urlOrigin = normalizeOrigin(parsedUrl.origin);
-                    
+
                     if (!username || !password) {
                         throw new Error('Credenciais inválidas');
+                    }
+
+                    // Se o app estiver em HTTPS e o servidor em HTTP, o navegador bloqueia (Mixed Content).
+                    if (window.location.protocol === 'https:' && urlOrigin.startsWith('http://')) {
+                        loadingOverlay.style.display = 'none';
+                        showError('Servidor IPTV em HTTP bloqueado em páginas HTTPS (mixed content). Use HTTPS no servidor/playlist ou um proxy.');
+                        return;
                     }
 
                     currentUrlDisplay.style.display = 'block';
                     currentUrlText.textContent = url.length > 60 ? url.substring(0, 60) + '...' : url;
 
-                    console.log('URL Origin:', urlOrigin);
-                    console.log('Username:', username);
+                    debugLog('URL Origin:', urlOrigin);
+                    debugLog('Username:', username);
 
                     fetchCategories();
                 } catch (error) {
@@ -850,18 +856,21 @@
             }
 
             // ========== HELPERS (ADICIONAL - NÃO REMOVE O ORIGINAL) ==========
+            const DEBUG = false;
+            const debugLog = (...args) => { if (DEBUG) console.log(...args); };
+            const debugError = (...args) => { if (DEBUG) console.error(...args); };
+
             let isAutoRetrying = false;
+            let lastErrorAt = 0;
+            let lastErrorMessage = '';
+            let errorToastEl = null;
+            let errorToastTimer = null;
 
             function normalizeOrigin(origin) {
                 try {
                     let o = String(origin || '').trim();
                     o = o.replace(/\/+$/, '');
-
-                    // Se esta página está em HTTPS, HTTP tende a falhar (Mixed Content).
-                    if (window.location.protocol === 'https:' && o.startsWith('http://')) {
-                        return 'https://' + o.slice('http://'.length);
-                    }
-
+                    // Importante: não troca http->https automaticamente (isso pode quebrar servidores sem HTTPS).
                     return o;
                 } catch (e) {
                     return origin;
@@ -916,6 +925,15 @@
 
             function isProbablyMixedContent(url) {
                 return window.location.protocol === 'https:' && String(url || '').startsWith('http://');
+            }
+
+            function getFriendlyPlaybackError(errObj) {
+                const code = errObj && typeof errObj.code === 'number' ? errObj.code : null;
+                if (code === 4) return 'Não foi possível reproduzir: fonte não suportada ou bloqueada (CORS/HTTPS).';
+                if (code === 2) return 'Falha de rede ao carregar o stream.';
+                if (code === 3) return 'Erro ao decodificar o stream.';
+                if (code === 1) return 'Reprodução interrompida.';
+                return 'Erro na reprodução do vídeo.';
             }
 
             // ========== FUNÇÃO PARA REMOVER PREFIXOS (ORIGINAL) ==========
@@ -978,16 +996,29 @@
 
             // ========== FUNÇÃO DE ERRO (ORIGINAL) ==========
             function showError(message) {
-                console.log('Erro:', message);
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'error-message';
-                errorDiv.textContent = message;
-                document.body.appendChild(errorDiv);
-                
-                setTimeout(() => {
-                    if (errorDiv.parentNode) {
-                        errorDiv.parentNode.removeChild(errorDiv);
+                const msg = String(message || 'Erro desconhecido');
+                const now = Date.now();
+
+                // Evita spam: mesma mensagem em sequência.
+                if (msg === lastErrorMessage && (now - lastErrorAt) < 2500) return;
+                lastErrorMessage = msg;
+                lastErrorAt = now;
+
+                if (!errorToastEl) {
+                    errorToastEl = document.createElement('div');
+                    errorToastEl.className = 'error-message';
+                    document.body.appendChild(errorToastEl);
+                }
+
+                errorToastEl.textContent = msg;
+
+                if (errorToastTimer) clearTimeout(errorToastTimer);
+                errorToastTimer = setTimeout(() => {
+                    if (errorToastEl && errorToastEl.parentNode) {
+                        errorToastEl.parentNode.removeChild(errorToastEl);
                     }
+                    errorToastEl = null;
+                    errorToastTimer = null;
                 }, 5000);
             }
 
@@ -995,7 +1026,7 @@
             async function fetchCategories() {
                 loadingOverlay.style.display = 'flex';
                 try {
-                    console.log('Buscando categorias...');
+                    debugLog('Buscando categorias...');
                     const response = await axios.get(
                         `${urlOrigin}/player_api.php?username=${username}&password=${password}&action=get_live_categories`,
                         {
@@ -1006,21 +1037,22 @@
                         }
                     );
 
-                    console.log('Resposta das categorias:', response.data);
+                    debugLog('Resposta das categorias:', response.data);
 
                     if (Array.isArray(response.data) && response.data.length > 0) {
-                        console.log(`Encontradas ${response.data.length} categorias`);
-                        
+                        debugLog(`Encontradas ${response.data.length} categorias`);
+
                         const promises = response.data.map(category => fetchItems(category));
                         await Promise.allSettled(promises);
-                        
-                        console.log('Todas as categorias processadas');
+
+                        debugLog('Todas as categorias processadas');
                     } else {
                         throw new Error('Nenhuma categoria encontrada');
                     }
                 } catch (error) {
-                    console.error('Erro ao buscar categorias:', error);
-                    showError('Erro ao carregar categorias: ' + error.message);
+                    // Sem logs “robustos” por padrão.
+                    debugError('Erro ao buscar categorias:', error);
+                    showError('Erro ao carregar categorias. Verifique a URL/credenciais e se o servidor permite acesso via navegador.');
                 } finally {
                     loadingOverlay.style.display = 'none';
                 }
@@ -1029,8 +1061,8 @@
             // ========== FETCH ITEMS (ORIGINAL) ==========
             async function fetchItems(category) {
                 try {
-                    console.log(`Buscando itens para categoria: ${category.category_name}`);
-                    
+                    debugLog(`Buscando itens para categoria: ${category.category_name}`);
+
                     if (cachedData[category.category_name]) {
                         displayCategory(category.category_name, cachedData[category.category_name]);
                         return;
@@ -1047,12 +1079,12 @@
                     );
 
                     const items = Array.isArray(response.data) ? response.data : [];
-                    console.log(`Encontrados ${items.length} itens para ${category.category_name}`);
+                    debugLog(`Encontrados ${items.length} itens para ${category.category_name}`);
                     cachedData[category.category_name] = items;
                     displayCategory(category.category_name, items);
-                    
+
                 } catch (error) {
-                    console.error(`Erro ao carregar itens da categoria ${category.category_name}:`, error);
+                    debugError(`Erro ao carregar itens da categoria ${category.category_name}:`, error);
                     displayCategory(category.category_name, []);
                     cachedData[category.category_name] = [];
                 }
@@ -1067,7 +1099,7 @@
 
                 const displayName = removePrefixesFromName(categoryName);
                 const finalDisplayName = displayName || categoryName;
-                console.log(`Exibindo categoria: ${finalDisplayName} (${items.length} itens)`);
+                debugLog(`Exibindo categoria: ${finalDisplayName} (${items.length} itens)`);
 
                 const categoryTitle = document.createElement('div');
                 categoryTitle.className = 'category-title';
@@ -1179,15 +1211,15 @@
                 player.poster('https://i.ibb.co/wYHRkPj/Text-Toos-Apk.png');
                 */
 
-                console.log('Reproduzindo:', item.name, 'ID:', item.stream_id);
+                debugLog('Reproduzindo:', item.name, 'ID:', item.stream_id);
 
                 const candidates = buildLiveCandidateUrls(item);
-                console.log('URLs candidatas:', candidates);
+                debugLog('URLs candidatas:', candidates);
 
                 // Caso apareça HTTP aqui, a página em HTTPS vai bloquear.
                 if (candidates.some(isProbablyMixedContent)) {
                     isAutoRetrying = false;
-                    showError('Servidor IPTV em HTTP bloqueado em páginas HTTPS (mixed content). Use HTTPS no servidor/playlist.');
+                    showError('Servidor IPTV em HTTP bloqueado em páginas HTTPS (mixed content). Use HTTPS no servidor/playlist ou um proxy.');
                     return;
                 }
 
@@ -1197,14 +1229,14 @@
                 const tryNext = () => {
                     if (attemptIndex >= candidates.length) {
                         isAutoRetrying = false;
-                        showError('Não foi possível reproduzir o vídeo. Possível CORS/HTTPS no servidor IPTV.');
+                        showError('Não foi possível reproduzir. O servidor pode bloquear reprodução no navegador (CORS) ou não usar HTTPS.');
                         return;
                     }
 
                     const url = candidates[attemptIndex++];
                     const type = detectVideoType(url);
 
-                    console.log(`Tentativa ${attemptIndex}/${candidates.length}:`, url, 'type:', type);
+                    debugLog(`Tentativa ${attemptIndex}/${candidates.length}:`, url, 'type:', type);
 
                     try {
                         player.pause();
@@ -1224,12 +1256,12 @@
 
                     player.play()
                         .then(() => {
-                            console.log('Reprodução iniciada com sucesso');
+                            debugLog('Reprodução iniciada com sucesso');
                             channelLogo.style.display = 'block';
                             isAutoRetrying = false;
                         })
                         .catch((error) => {
-                            console.error('Erro ao iniciar a reprodução:', error);
+                            debugError('Erro ao iniciar a reprodução:', error);
                             // Tenta próximo formato/URL
                             tryNext();
                         });
@@ -1240,26 +1272,25 @@
             }
 
             // ========== EVENT LISTENERS DO PLAYER (ORIGINAL) ==========
-            player.on('error', function(error) {
+            player.on('error', function() {
                 const errObj = typeof player.error === 'function' ? player.error() : null;
-                console.error('Erro do player:', error, errObj);
 
                 // Durante tentativas automáticas de fallback, evita spammar alertas.
                 if (isAutoRetrying) return;
 
-                showError('Erro na reprodução do vídeo');
+                showError(getFriendlyPlaybackError(errObj));
             });
 
             player.on('loadstart', function() {
-                console.log('Iniciando carregamento...');
+                debugLog('Iniciando carregamento...');
             });
 
             player.on('waiting', function() {
-                console.log('Buffering...');
+                debugLog('Buffering...');
             });
 
             player.on('canplay', function() {
-                console.log('Vídeo pronto para reproduzir');
+                debugLog('Vídeo pronto para reproduzir');
             });
 
             player.on('pause', function() {
