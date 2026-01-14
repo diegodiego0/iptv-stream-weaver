@@ -557,10 +557,10 @@
     <div class="modal-overlay" id="transform-modal">
       <div class="modal-dialog">
         <div class="modal-title" id="modal-title">Selecione o Lado</div>
-        <button onclick="selectSide('left')">Apenas Campo 1 (Esquerdo)</button>
-        <button onclick="selectSide('right')">Apenas Campo 2 (Direito)</button>
-        <button onclick="selectSide('both')">Ambos os Campos</button>
-        <button class="modal-close" onclick="closeModal()">Cancelar</button>
+        <button id="btn-left" type="button">📝 Apenas Campo 1 (Esquerdo)</button>
+        <button id="btn-right" type="button">📝 Apenas Campo 2 (Direito)</button>
+        <button id="btn-both" type="button">📝📝 Ambos os Campos</button>
+        <button class="modal-close" id="btn-cancel" type="button">Cancelar</button>
       </div>
     </div>
     
@@ -640,45 +640,7 @@
       input1.addEventListener('input', updateLineCounts);
       input2.addEventListener('input', updateLineCounts);
 
-      /* ========================================
-       * FUNÇÃO: capitalizeFirstLetterOfLine
-       * Descrição: Capitaliza APENAS a primeira letra de cada LINHA
-       *            e converte o resto para minúscula
-       * Parâmetro: text - texto a ser transformado
-       * Retorno: texto transformado
-       * AJUSTE: Modifique a lógica se quiser comportamento diferente
-       * ======================================== */
-      function capitalizeFirstLetterOfLine(text) {
-        if (!text) return text;
-        return text.split('\n').map(line => {
-          if (line.length === 0) return line;
-          // Primeira letra maiúscula, resto minúsculo
-          return line.charAt(0).toUpperCase() + line.slice(1).toLowerCase();
-        }).join('\n');
-      }
-
-      /* ========================================
-       * FUNÇÃO: removeDuplicateLines
-       * Descrição: Remove linhas duplicadas mantendo a ordem
-       * Parâmetro: text - texto a ser processado
-       * Retorno: texto sem duplicatas
-       * ======================================== */
-      function removeDuplicateLines(text) {
-        if (!text) return text;
-        const lines = text.split('\n');
-        const seen = new Set();
-        const uniqueLines = [];
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (trimmedLine && !seen.has(trimmedLine)) {
-            seen.add(trimmedLine);
-            uniqueLines.push(line);
-          } else if (!trimmedLine) {
-            uniqueLines.push(line); // Mantém linhas vazias
-          }
-        }
-        return uniqueLines.join('\n');
-      }
+      /* Funções de transformação inline - incorporadas em applyTransform */
 
       /* ========================================
        * FUNÇÃO: openModal
@@ -716,64 +678,95 @@
        * Parâmetro: side - 'both', 'left', ou 'right'
        * ======================================== */
       function selectSide(side) {
-        if (currentTransformType) {
-          transformCase(currentTransformType, side);
+        if (!currentTransformType) {
+          closeModal();
+          return;
         }
+        
+        const type = currentTransformType;
         closeModal();
+        
+        // Aplica a transformação
+        applyTransform(type, side);
       }
 
       /* ========================================
-       * FUNÇÃO: transformCase
+       * FUNÇÃO: applyTransform
        * Descrição: Função principal que aplica a transformação de texto
        * Parâmetros: 
        *   - type: 'upper', 'lower', 'capitalize', 'removeDuplicates'
        *   - side: 'both' (ambos campos), 'left' (campo 1), 'right' (campo 2)
-       * AJUSTE: Adicione novos tipos de transformação no switch(type)
        * ======================================== */
-      function transformCase(type, side) {
-        let transform;
-        
+      function applyTransform(type, side) {
         // Define a função de transformação baseada no tipo
+        let transform;
+        let typeName = '';
+        
         switch(type) {
           case 'upper':
-            transform = (text) => text.toUpperCase();
+            transform = function(text) { return text.toUpperCase(); };
+            typeName = 'MAIÚSCULAS';
             break;
           case 'lower':
-            transform = (text) => text.toLowerCase();
+            transform = function(text) { return text.toLowerCase(); };
+            typeName = 'minúsculas';
             break;
           case 'capitalize':
-            transform = capitalizeFirstLetterOfLine;
+            transform = function(text) {
+              if (!text) return text;
+              return text.split('\n').map(function(line) {
+                if (line.length === 0) return line;
+                return line.charAt(0).toUpperCase() + line.slice(1).toLowerCase();
+              }).join('\n');
+            };
+            typeName = 'Primeira Letra';
             break;
           case 'removeDuplicates':
-            transform = removeDuplicateLines;
+            transform = function(text) {
+              if (!text) return text;
+              var lines = text.split('\n');
+              var seen = {};
+              var uniqueLines = [];
+              for (var i = 0; i < lines.length; i++) {
+                var line = lines[i];
+                var trimmedLine = line.trim();
+                if (trimmedLine && !seen[trimmedLine]) {
+                  seen[trimmedLine] = true;
+                  uniqueLines.push(line);
+                } else if (!trimmedLine) {
+                  uniqueLines.push(line);
+                }
+              }
+              return uniqueLines.join('\n');
+            };
+            typeName = 'Remover Duplicados';
             break;
           default:
-            console.error('Tipo de transformação desconhecido:', type);
             return;
         }
 
         // Aplica a transformação no(s) campo(s) selecionado(s)
-        switch(side) {
-          case 'both':
-            input1.value = transform(input1.value);
-            input2.value = transform(input2.value);
-            break;
-          case 'left':
-            input1.value = transform(input1.value);
-            break;
-          case 'right':
-            input2.value = transform(input2.value);
-            break;
-          default:
-            console.error('Lado desconhecido:', side);
-            return;
+        let sideName = '';
+        
+        if (side === 'both') {
+          input1.value = transform(input1.value);
+          input2.value = transform(input2.value);
+          sideName = 'ambos os campos';
+        } else if (side === 'left') {
+          input1.value = transform(input1.value);
+          sideName = 'Campo 1';
+        } else if (side === 'right') {
+          input2.value = transform(input2.value);
+          sideName = 'Campo 2';
+        } else {
+          return;
         }
         
         // Atualiza contadores após transformação
         updateLineCounts();
         
-        // Feedback visual
-        showNotification(`Transformação aplicada com sucesso!`);
+        // Feedback visual com detalhes
+        showNotification(typeName + ' aplicado em ' + sideName + '!');
       }
 
       /* ========================================
@@ -820,6 +813,20 @@
           setTimeout(() => notification.remove(), 300);
         }, 2000);
       }
+
+      // Eventos dos botões do modal
+      document.getElementById('btn-left').addEventListener('click', function() {
+        selectSide('left');
+      });
+      document.getElementById('btn-right').addEventListener('click', function() {
+        selectSide('right');
+      });
+      document.getElementById('btn-both').addEventListener('click', function() {
+        selectSide('both');
+      });
+      document.getElementById('btn-cancel').addEventListener('click', function() {
+        closeModal();
+      });
 
       // Fechar modal ao clicar fora do diálogo
       modal.addEventListener('click', function(e) {
