@@ -537,32 +537,23 @@
     <!-- BOTÕES DE TRANSFORMAÇÃO -->
     <div class="button-container1">
       <div class="dropdown-container">
-        <button class="dropdown-btn" onclick="openModal('upper')">MAIÚSCULAS ▼</button>
+        <button class="dropdown-btn" onclick="applyTransform('upper')">MAIÚSCULAS</button>
       </div>
       <div class="dropdown-container">
-        <button class="dropdown-btn" onclick="openModal('lower')">minúsculas ▼</button>
+        <button class="dropdown-btn" onclick="applyTransform('lower')">minúsculas</button>
       </div>
       <div class="dropdown-container">
-        <button class="dropdown-btn" onclick="openModal('capitalize')">Primeira Letra ▼</button>
+        <button class="dropdown-btn" onclick="applyTransform('capitalize')">Primeira Letra</button>
       </div>
       <div class="dropdown-container">
-        <button class="dropdown-btn" onclick="openModal('removeDuplicates')">Remover Duplicados ▼</button>
+        <button class="dropdown-btn" onclick="applyTransform('removeDuplicates')">Remover Duplicados</button>
       </div>
       <div class="dropdown-container">
         <button class="dropdown-btn" onclick="clearAll()">Limpar Tudo</button>
       </div>
     </div>
 
-    <!-- MODAL: CAIXA DE DIÁLOGO PARA OPÇÕES -->
-    <div class="modal-overlay" id="transform-modal">
-      <div class="modal-dialog">
-        <div class="modal-title" id="modal-title">Selecione o Lado</div>
-        <button id="btn-left" type="button">📝 Apenas Campo 1 (Esquerdo)</button>
-        <button id="btn-right" type="button">📝 Apenas Campo 2 (Direito)</button>
-        <button id="btn-both" type="button">📝📝 Ambos os Campos</button>
-        <button class="modal-close" id="btn-cancel" type="button">Cancelar</button>
-      </div>
-    </div>
+    <!-- Modal removido - transformações aplicam em ambos os campos automaticamente -->
     
     <!-- CAMPOS DE PREFIXO E SUFIXO -->
     <div class="additional-fields">
@@ -612,19 +603,12 @@
       const output = document.getElementById('output');
       const copyButton = document.getElementById('copy-button');
       const loadFileButton = document.getElementById('load-file-button');
-      const modal = document.getElementById('transform-modal');
-      const modalTitle = document.getElementById('modal-title');
       const progressContainer = document.getElementById('progress-container');
       const progressFill = document.getElementById('progress-fill');
       const progressText = document.getElementById('progress-text');
       const count1 = document.getElementById('count1');
       const count2 = document.getElementById('count2');
       
-      /* ========================================
-       * VARIÁVEL: Tipo de transformação atual
-       * ======================================== */
-      let currentTransformType = null;
-
       /* ========================================
        * FUNÇÃO: updateLineCounts
        * Descrição: Atualiza os contadores de linhas
@@ -640,64 +624,12 @@
       input1.addEventListener('input', updateLineCounts);
       input2.addEventListener('input', updateLineCounts);
 
-      /* Funções de transformação inline - incorporadas em applyTransform */
-
-      /* ========================================
-       * FUNÇÃO: openModal
-       * Descrição: Abre o modal de opções de transformação
-       * Parâmetro: type - 'upper', 'lower', 'capitalize', 'removeDuplicates'
-       * AJUSTE: Altere os títulos do modal aqui
-       * ======================================== */
-      function openModal(type) {
-        currentTransformType = type;
-        
-        // Define o título do modal baseado no tipo
-        const titles = {
-          'upper': 'MAIÚSCULAS - Selecione onde aplicar',
-          'lower': 'minúsculas - Selecione onde aplicar',
-          'capitalize': 'Primeira Letra - Selecione onde aplicar',
-          'removeDuplicates': 'Remover Duplicados - Selecione onde aplicar'
-        };
-        modalTitle.textContent = titles[type] || 'Selecione o Lado';
-        
-        modal.classList.add('active');
-      }
-
-      /* ========================================
-       * FUNÇÃO: closeModal
-       * Descrição: Fecha o modal de opções
-       * ======================================== */
-      function closeModal() {
-        modal.classList.remove('active');
-        currentTransformType = null;
-      }
-
-      /* ========================================
-       * FUNÇÃO: selectSide
-       * Descrição: Aplica a transformação no lado selecionado
-       * Parâmetro: side - 'both', 'left', ou 'right'
-       * ======================================== */
-      function selectSide(side) {
-        if (!currentTransformType) {
-          closeModal();
-          return;
-        }
-        
-        const type = currentTransformType;
-        closeModal();
-        
-        // Aplica a transformação
-        applyTransform(type, side);
-      }
-
       /* ========================================
        * FUNÇÃO: applyTransform
-       * Descrição: Função principal que aplica a transformação de texto
-       * Parâmetros: 
-       *   - type: 'upper', 'lower', 'capitalize', 'removeDuplicates'
-       *   - side: 'both' (ambos campos), 'left' (campo 1), 'right' (campo 2)
+       * Descrição: Aplica transformação em AMBOS os campos automaticamente
+       * Parâmetro: type - 'upper', 'lower', 'capitalize', 'removeDuplicates'
        * ======================================== */
-      function applyTransform(type, side) {
+      function applyTransform(type) {
         // Define a função de transformação baseada no tipo
         let transform;
         let typeName = '';
@@ -745,28 +677,15 @@
             return;
         }
 
-        // Aplica a transformação no(s) campo(s) selecionado(s)
-        let sideName = '';
-        
-        if (side === 'both') {
-          input1.value = transform(input1.value);
-          input2.value = transform(input2.value);
-          sideName = 'ambos os campos';
-        } else if (side === 'left') {
-          input1.value = transform(input1.value);
-          sideName = 'Campo 1';
-        } else if (side === 'right') {
-          input2.value = transform(input2.value);
-          sideName = 'Campo 2';
-        } else {
-          return;
-        }
+        // Aplica a transformação em AMBOS os campos
+        input1.value = transform(input1.value);
+        input2.value = transform(input2.value);
         
         // Atualiza contadores após transformação
         updateLineCounts();
         
-        // Feedback visual com detalhes
-        showNotification(typeName + ' aplicado em ' + sideName + '!');
+        // Feedback visual
+        showNotification(typeName + ' aplicado em ambos os campos!');
       }
 
       /* ========================================
@@ -814,33 +733,7 @@
         }, 2000);
       }
 
-      // Eventos dos botões do modal
-      document.getElementById('btn-left').addEventListener('click', function() {
-        selectSide('left');
-      });
-      document.getElementById('btn-right').addEventListener('click', function() {
-        selectSide('right');
-      });
-      document.getElementById('btn-both').addEventListener('click', function() {
-        selectSide('both');
-      });
-      document.getElementById('btn-cancel').addEventListener('click', function() {
-        closeModal();
-      });
-
-      // Fechar modal ao clicar fora do diálogo
-      modal.addEventListener('click', function(e) {
-        if (e.target === modal) {
-          closeModal();
-        }
-      });
-
-      // Fechar modal com tecla ESC
-      document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && modal.classList.contains('active')) {
-          closeModal();
-        }
-      });
+      /* Modal removido - transformações aplicam diretamente */
 
       /* Botão Nomes removido - API externa não utilizada */
 
