@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IPTV Player v1.1.3 - Modular</title>
+  
+  <!-- =============================================
+       IPTV Player v1.1.3 - Versão Modularizada
+       =============================================
+       Este arquivo HTML foi refatorado do original
+       para separar CSS e JavaScript em arquivos externos.
+       
+       ESTRUTURA DE PASTAS:
+       /iptv-modular/
+         ├── index.html (este arquivo)
+         ├── css/
+         │   └── styles.css (todos os estilos)
+         ├── js/
+         │   ├── webview-compat.js (compatibilidade Android WebView)
+         │   └── app.js (lógica principal da aplicação)
+         ├── img/ (recursos de imagem - adicionar conforme necessário)
+         └── fonts/ (fontes personalizadas - adicionar conforme necessário)
+       
+       COMPATIBILIDADE:
+       - Android WebView (API 21+)
+       - Sketchware padrão e modificado
+       - Navegadores desktop (Chrome, Firefox, Safari, Edge)
+       - file:///android_asset/ para carga local
+       ============================================= -->
+  
+  <!-- Dependências externas (CDN) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.0/css/all.min.css" rel="stylesheet">
+  <link href="https://vjs.zencdn.net/8.6.1/video-js.css" rel="stylesheet">
+  
+  <!-- CSS Principal - Extraído do HTML original -->
+  <link rel="stylesheet" href="./css/styles.css">
+  
+  <!-- HLS.js para streaming -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  
+  <!-- Meta tags SEO -->
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="canonical" href="/iptv-player-v1.1.3.html" />
+  <meta name="description" content="Assista listas IPTV direto no navegador com o IPTV Player v1.1.3. Rápido, seguro e fácil de usar." />
+  <meta property="og:title" content="IPTV Player v1.1.3 — Player IPTV no Navegador" />
+  <meta property="og:description" content="Assista listas IPTV direto no navegador com o IPTV Player v1.1.3. Rápido, seguro e fácil de usar." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="/iptv-player-v1.1.3.html" />
+  <meta property="og:image" content="/favicon.ico" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="IPTV Player v1.1.3 — Player IPTV no Navegador" />
+  <meta name="twitter:description" content="Assista listas IPTV direto no navegador com o IPTV Player v1.1.3. Rápido, seguro e fácil de usar." />
+  <meta name="theme-color" content="#00A848" />
+
+  <!-- Schema.org JSON-LD -->
+  <script type="application/ld+json">
+  { "@context": "https://schema.org", "@type": "WebApplication", "name": "IPTV Player v1.1.3", "url": "/iptv-player-v1.1.3.html", "applicationCategory": "EntertainmentApplication", "operatingSystem": "Web", "description": "Player IPTV direto no navegador para assistir listas M3U/M3U8 com rapidez e segurança.", "offers": { "@type": "Offer", "price": "0", "priceCurrency": "BRL" } }
+  </script>
+</head>
+<body data-theme="verde">
+  
+  <!-- =============================================
+       ESTRUTURA HTML - Extraída do arquivo original
+       Nenhum ID, classe ou estrutura foi modificado
+       ============================================= -->
+  
+  <div class="app-container">
+    <!-- Header -->
+    <div class="header d-flex justify-content-between align-items-center">
+      <div class="header-title-area">
+        <h1><i class="fas fa-fire me-2"></i>IPTVBR v9</h1>
+      </div>
+      <div class="header-buttons">
+        <button class="header-btn" id="themeBtn" title="Temas">
+          <i class="fas fa-palette"></i>
+        </button>
+        <button class="header-btn" id="shareBtn" title="Compartilhar">
+          <i class="fas fa-share-alt"></i>
+        </button>
+        <button class="header-btn" onclick="FullscreenCompat ? FullscreenCompat.toggleFullscreen() : document.documentElement.requestFullscreen()" title="Tela Cheia">
+          <i class="fas fa-expand"></i>
+        </button>
+        <button class="header-btn" id="searchBtn" title="Buscar">
+          <i class="fas fa-search"></i>
+        </button>
+        <button class="header-btn" id="addPlaylistBtn" title="Adicionar Playlist">
+          <i class="fas fa-plus"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Video Section -->
+      <div class="video-section">
+        <div class="video-container">
+          <video id="videoPlayer" class="video-js vjs-default-skin vjs-big-play-centered" playsinline></video>
+          
+          <!-- Video Placeholder -->
+          <div id="videoPlaceholder" class="video-placeholder">
+            <i class="fas fa-play-circle"></i>
+            <h5>Selecione um conteúdo para assistir</h5>
+          </div>
+          
+          <!-- Player Logo -->
+          <img id="playerLogo" class="player-logo" src="" alt="Logo" style="display: none;">
+          
+          <!-- Radio Info Overlay -->
+          <div id="radioInfoOverlay" class="radio-info-overlay">
+            <img id="radioLogoSmall" class="radio-logo-small" src="" alt="Radio Logo">
+            <div class="radio-details">
+              <p id="radioNameSmall" class="radio-name"></p>
+              <p id="radioFrequencySmall" class="radio-frequency"></p>
+            </div>
+          </div>
+          
+          <!-- Radio Visual Display -->
+          <div id="radioVisualDisplay" class="radio-visual-display">
+            <div class="radio-background"></div>
+            <div class="radio-overlay"></div>
+            <div class="radio-main-content">
+              <img class="radio-main-image" src="" alt="Radio">
+              <div class="radio-main-info">
+                <h3></h3>
+                <p></p>
+                <div class="radio-playing-indicator">
+                  <i class="fas fa-broadcast-tower"></i>
+                  <span>Ao Vivo</span>
+                </div>
+                <div class="radio-metadata-info">
+                  <div class="now-playing-title">
+                    <i class="fas fa-compact-disc"></i>
+                    <span>Carregando...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Custom Controls -->
+          <div id="customControls" class="custom-controls">
+            <button id="prevEpisodeBtn" class="control-btn" title="Episódio Anterior">
+              <i class="fas fa-step-backward"></i> Anterior
+            </button>
+            <button id="episodeListBtn" class="control-btn" title="Lista de Episódios">
+              <i class="fas fa-list"></i> Episódios
+            </button>
+            <button id="nextEpisodeBtn" class="control-btn" title="Próximo Episódio">
+              Próximo <i class="fas fa-step-forward"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content Section (Landscape) -->
+      <div class="content-section-landscape">
+        <!-- Main Navigation -->
+        <nav class="main-nav">
+          <ul class="nav nav-tabs">
+            <li class="nav-item">
+              <a class="nav-link active" href="#" data-content="channels">
+                <i class="fas fa-tv me-1"></i>Canais
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-content="movies">
+                <i class="fas fa-film me-1"></i>Filmes
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-content="series">
+                <i class="fas fa-play me-1"></i>Séries
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-content="radios">
+                <i class="fas fa-radio me-1"></i>Rádios
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-content="favorites">
+                <i class="fas fa-heart me-1"></i>Favoritos
+              </a>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- Channels Section -->
+        <div id="channelsSection" class="content-section active">
+          <div class="tab-bar">
+            <div id="channelTabs" class="tab-nav"></div>
+          </div>
+          <div id="channelList" class="content-list"></div>
+        </div>
+
+        <!-- Movies Section -->
+        <div id="moviesSection" class="content-section" style="display: none;">
+          <div class="tab-bar">
+            <div id="movieTabs" class="tab-nav"></div>
+          </div>
+          <div id="movieList" class="content-list"></div>
+        </div>
+
+        <!-- Series Section -->
+        <div id="seriesSection" class="content-section" style="display: none;">
+          <div class="tab-bar">
+            <div id="seriesTabs" class="tab-nav"></div>
+          </div>
+          <div id="seriesList" class="content-list"></div>
+          <div id="episodeList" class="episode-list" style="display: none;"></div>
+        </div>
+
+        <!-- Radios Section -->
+        <div id="radiosSection" class="content-section" style="display: none;">
+          <div id="radioList" class="content-list"></div>
+        </div>
+
+        <!-- Favorites Section -->
+        <div id="favoritesSection" class="content-section" style="display: none;">
+          <div class="favorites-header">
+            <h5><i class="fas fa-heart me-2"></i>Meus Favoritos</h5>
+          </div>
+          <div id="favoritesList" class="favorites-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Games Carousel -->
+    <div class="games-carousel">
+      <div id="gamesScroll" class="games-scroll"></div>
+    </div>
+  </div>
+
+  <!-- Theme Modal -->
+  <div id="themeModal" class="theme-modal" onclick="if(event.target === this) closeThemeModal()">
+    <div class="theme-content">
+      <h4 class="mb-4">Escolha um Tema</h4>
+      <div class="theme-grid">
+        <div class="theme-option" data-theme="verde" onclick="changeTheme('verde')">
+          <i class="fas fa-leaf theme-verde"></i>
+          <div>Verde</div>
+        </div>
+        <div class="theme-option" data-theme="black" onclick="changeTheme('black')">
+          <i class="fas fa-moon theme-black"></i>
+          <div>Escuro</div>
+        </div>
+        <div class="theme-option" data-theme="claro" onclick="changeTheme('claro')">
+          <i class="fas fa-sun theme-claro"></i>
+          <div>Claro</div>
+        </div>
+        <div class="theme-option" data-theme="azul" onclick="changeTheme('azul')">
+          <i class="fas fa-water theme-azul"></i>
+          <div>Azul</div>
+        </div>
+        <div class="theme-option" data-theme="vermelho" onclick="changeTheme('vermelho')">
+          <i class="fas fa-fire-alt theme-vermelho"></i>
+          <div>Vermelho</div>
+        </div>
+      </div>
+      <button class="btn btn-secondary mt-4" onclick="closeThemeModal()">Fechar</button>
+    </div>
+  </div>
+
+  <!-- Episode Navigation Overlay -->
+  <div id="episodeNavOverlay" class="episode-nav-overlay">
+    <button id="episodeNavClose" class="episode-nav-close">
+      <i class="fas fa-times"></i>
+    </button>
+    <div class="episode-nav-content">
+      <h4 id="episodeNavTitle" class="episode-nav-title"></h4>
+      <div id="episodeNavList" class="episode-nav-list"></div>
+    </div>
+  </div>
+
+  <!-- Search Modal -->
+  <div class="modal fade" id="searchModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content" style="background: var(--bg-tertiary); color: white;">
+        <div class="modal-header border-0">
+          <h5 class="modal-title"><i class="fas fa-search me-2"></i>Buscar</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" id="searchInput" class="form-control mb-3" placeholder="Digite para buscar..." style="background: var(--bg-quaternary); border: none; color: white;">
+          <div class="search-filters">
+            <label class="search-filter">
+              <input type="checkbox" id="searchChannels" checked> Canais
+            </label>
+            <label class="search-filter">
+              <input type="checkbox" id="searchMovies" checked> Filmes
+            </label>
+            <label class="search-filter">
+              <input type="checkbox" id="searchSeries" checked> Séries
+            </label>
+            <label class="search-filter">
+              <input type="checkbox" id="searchRadios" checked> Rádios
+            </label>
+          </div>
+          <div id="searchResults" class="search-results"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Playlist Modal -->
+  <div class="modal fade" id="playlistModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content" style="background: var(--bg-tertiary); color: white;">
+        <div class="modal-header border-0">
+          <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Adicionar Playlist</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="playlistForm">
+            <div class="mb-3">
+              <label class="form-label">URL da Playlist (com username e password)</label>
+              <input type="url" id="playlistUrl" class="form-control" placeholder="http://servidor.com/get.php?username=xxx&password=xxx" style="background: var(--bg-quaternary); border: none; color: white;">
+            </div>
+            <button type="button" id="savePlaylist" class="btn btn-primary w-100">
+              <i class="fas fa-save me-2"></i>Salvar Playlist
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Continue Watching Modal -->
+  <div id="continueModal" class="continue-modal">
+    <div class="continue-content">
+      <i class="fas fa-history fa-3x mb-3" style="color: var(--primary-color);"></i>
+      <h4 class="mb-3">Continuar Assistindo?</h4>
+      <p id="continueMessage">Você tem progresso salvo neste conteúdo</p>
+      <div class="continue-buttons">
+        <button class="continue-btn primary" id="continueYes">Continuar</button>
+        <button class="continue-btn secondary" id="continueNo">Do Início</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Overlay -->
+  <div class="error-overlay" id="errorOverlay">
+    <div class="error-content">
+      <i class="fas fa-exclamation-triangle fa-3x mb-3" style="color: #EF4444;"></i>
+      <h4 class="mb-3">Erro de Conexão</h4>
+      <p id="errorMessage">Ocorreu um erro ao carregar o conteúdo</p>
+      <button class="retry-btn" id="retryBtn">Tentar Novamente</button>
+      <button class="retry-btn" style="background: #6B7280;" id="closeErrorBtn">Fechar</button>
+    </div>
+  </div>
+
+  <!-- =============================================
+       SCRIPTS - Ordem de carregamento importante
+       ============================================= -->
+  
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Video.js -->
+  <script src="https://vjs.zencdn.net/8.6.1/video.min.js"></script>
+  
+  <!-- Camada de compatibilidade Android WebView (carrega primeiro) -->
+  <script src="./js/webview-compat.js"></script>
+  
+  <!-- Lógica principal da aplicação -->
+  <script src="./js/app.js"></script>
+
+</body>
+</html>
