@@ -359,38 +359,50 @@ def obter_stream_base(server, username, password):
         s.close()
 
 # ----------------------------------------------------------------------
-# ✅ NOVA FUNÇÃO: SALVAR RESULTADO COM STREAM BASE POR SERVIDOR
+# ✅ NOVA FUNÇÃO: SALVA URL BASE NUMERADA SEM DUPLICAR EM novas_urls.txt
 # ----------------------------------------------------------------------
-def salvar_resultado_com_stream(server, texto, stream_base):
+def salvar_url_base_estrutura(stream_base):
     """
-    Salva o resultado em arquivo individual por servidor.
-    Arquivo: /sdcard/hits/resultado_{nome_do_servidor}.txt
+    Salva a URL base do stream (sem token) no arquivo novas_urls.txt
+    com numeração sequencial no formato:
+    🔰 URL BASE 1: http://servidor:porta/live/user/pass/12345.ts
+    🔰 URL BASE 2: http://servidor:porta/live/user/pass/67890.ts
+    Evita duplicatas verificando se a URL já existe no arquivo.
     """
-    try:
-        server_clean = server.replace("http://", "").replace("https://", "")
-        server_name = server_clean.replace(":", "_").replace("/", "_").replace(".", "_")
-        arquivo_servidor = f"/sdcard/hits/resultado_{server_name}.txt"
+    if not stream_base or stream_base == "N/A":
+        return
+    stream_base = stream_base.strip()
+    with lock:
+        if not os.path.exists(URLS_FILE):
+            return
+        try:
+            with open(URLS_FILE, "r", encoding="utf-8") as f:
+                linhas = [l.strip() for l in f if l.strip()]
+        except Exception:
+            return
 
-        bloco = texto
+        # Verificar duplicata
+        for l in linhas:
+            if stream_base in l:
+                return
 
-        if stream_base:
-            bloco += f"\n🔗 STREAM BASE (SEM TOKEN): {stream_base}\n"
+        # Contar URLs base existentes para numerar
+        num = 1
+        for l in linhas:
+            if l.startswith("🔰 URL BASE"):
+                num += 1
 
-        bloco += "\n▬▬▬ஜ۩𝑬𝒅𝒊𝒗𝒂𝒍𝒅𝒐۩ஜ▬▬▬\n"
-
-        with lock:
-            with open(arquivo_servidor, "a", encoding="utf-8") as f:
-                f.write(bloco + "\n")
+        try:
+            with open(URLS_FILE, "a", encoding="utf-8") as f:
+                f.write(f"🔰 URL BASE {num}: {stream_base}\n")
                 f.flush()
                 try:
                     os.fsync(f.fileno())
                 except Exception:
                     pass
-
-        print(Fore.GREEN + f"  📁 Resultado salvo em: {arquivo_servidor}")
-
-    except Exception as e:
-        print(Fore.RED + f"Erro ao salvar resultado por servidor: {e}")
+            print(Fore.GREEN + f"  🔰 URL BASE {num} salva em: {URLS_FILE}")
+        except Exception:
+            pass
 
 # ----------------------------------------------------------------------
 # TESTE PRINCIPAL
@@ -455,7 +467,8 @@ def testar_servidor(server, username, password):
     print(Fore.YELLOW + "  🔍 Obtendo URL base do stream (sem token)...")
     stream_base = obter_stream_base(server, username, password)
     if stream_base:
-        print(Fore.GREEN + f"  🔗 STREAM BASE (SEM TOKEN): {stream_base}")
+        print(Fore.GREEN + f"  🔰 STREAM BASE (SEM TOKEN): {stream_base}")
+        salvar_url_base_estrutura(stream_base)
     else:
         print(Fore.RED + "  ⚠️ Não foi possível obter a URL base do stream")
 
@@ -519,9 +532,6 @@ def testar_servidor(server, username, password):
 
     # Salvar no arquivo principal (original)
     salvar_resultado(texto_resultado)
-
-    # ✅ NOVA: Salvar em arquivo individual por servidor
-    salvar_resultado_com_stream(server, texto_resultado, stream_base)
 
 # ----------------------------------------------------------------------
 # WORKER
