@@ -1,8 +1,17 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# ══════════════════════════════════════════════
+# 🔄  MIGRADOR MULTI STREAM SERVER v2.0
+# 👨‍💻 Créditos: Edivaldo Silva @Edkd1
+# ⚡ Powered by 773H Ultra
+# ══════════════════════════════════════════════
+
 import requests
 import threading
 import os
 import time
 import sys
+import random
 from datetime import datetime
 from colorama import Fore, init
 
@@ -16,6 +25,26 @@ fails = 0
 lock = threading.Lock()
 primeira_info_salva = False
 
+# ----------------------------------------------------------------------
+# USER-AGENTS ROTATIVOS
+# ----------------------------------------------------------------------
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/120.0.0.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_2) AppleWebKit/605.1.15 Version/16.3 Safari/605.1.15",
+    "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 SamsungBrowser/22.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Brave/1.60",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OPR/105.0.0.0",
+    "Mozilla/5.0 (Windows NT 10.0; rv:121.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (compatible; YandexBrowser/23.9)"
+]
+
+def contar_linhas_hosts():
+    if not os.path.exists(HOSTS_FILE):
+        return 0
+    with open(HOSTS_FILE, "r", encoding="utf-8") as f:
+        return sum(1 for l in f if l.strip())
+
 os.makedirs("/sdcard/hits", exist_ok=True)
 
 # ----------------------------------------------------------------------
@@ -23,9 +52,7 @@ os.makedirs("/sdcard/hits", exist_ok=True)
 # ----------------------------------------------------------------------
 def nova_session():
     s = requests.Session()
-    s.headers.update({
-        "User-Agent": "Dalvik/2.1.0 (Linux; Android 10)"
-    })
+    s.headers.update({"User-Agent": random.choice(USER_AGENTS)})
     return s
 
 # ----------------------------------------------------------------------
@@ -70,6 +97,7 @@ def salvar_estrutura_completa(username, password, criado, expira,
     global primeira_info_salva
     if primeira_info_salva:
         return
+
     with lock:
         if primeira_info_salva:
             return
@@ -112,7 +140,9 @@ def salvar_estrutura_completa(username, password, criado, expira,
 def salvar_url_estrutura(url_server):
     if not url_server or url_server == "N/A":
         return
+
     url_server = url_server.strip()
+
     with lock:
         if not os.path.exists(URLS_FILE):
             return
@@ -121,13 +151,16 @@ def salvar_url_estrutura(url_server):
                 linhas = [l.strip() for l in f if l.strip()]
         except Exception:
             return
+
         for l in linhas:
             if url_server in l:
                 return
+
         num = 1
         for l in linhas:
             if l.startswith("🔎URL"):
                 num += 1
+
         try:
             with open(URLS_FILE, "a", encoding="utf-8") as f:
                 f.write(f"🔎URL {num}: {url_server}\n")
@@ -143,8 +176,10 @@ def salvar_url_estrutura(url_server):
 def salvar_novo_host(url_server):
     if not url_server or url_server == "N/A":
         return
+
     url_server = url_server.strip().lower()
     base = url_server.split(":", 1)[0] if ":" in url_server else url_server
+
     with lock:
         if not os.path.exists(HOSTS_FILE):
             try:
@@ -154,14 +189,17 @@ def salvar_novo_host(url_server):
             with open(HOSTS_FILE, "a", encoding="utf-8") as f:
                 f.write(url_server + "\n")
             return
+
         try:
             with open(HOSTS_FILE, "r", encoding="utf-8") as f:
                 hosts = [h.strip().lower() for h in f if h.strip()]
         except Exception:
             hosts = []
+
         for h in hosts:
             if h.split(":", 1)[0] == base:
                 return
+
         with open(HOSTS_FILE, "a", encoding="utf-8") as f:
             f.write(url_server + "\n")
 
@@ -170,6 +208,7 @@ def carregar_hosts():
     if not os.path.exists(HOSTS_FILE):
         print(Fore.RED + "ERRO: Arquivo hosts não encontrado!")
         return []
+
     with open(HOSTS_FILE, "r", encoding="utf-8") as f:
         hosts = list(dict.fromkeys([h.strip() for h in f if h.strip()]))
     print(Fore.GREEN + f"Servidores carregados: {len(hosts)}")
@@ -196,6 +235,7 @@ def contar_conteudo(base_url, user, pwd):
             return 0
         finally:
             s.close()
+
     return req("get_live_streams"), req("get_vod_streams"), req("get_series")
 
 # ----------------------------------------------------------------------
@@ -259,6 +299,7 @@ def converter_para_player_api(url_original):
                     if seg in ("live", "movie", "series"):
                         tipo_idx = i
                         break
+
                 if tipo_idx >= 0 and len(segmentos) > tipo_idx + 2:
                     user = segmentos[tipo_idx + 1]
                     pwd = segmentos[tipo_idx + 2]
@@ -287,18 +328,17 @@ def converter_para_player_api(url_original):
         return None, None, None
 
 # ----------------------------------------------------------------------
-# ✅ NOVA FUNÇÃO: OBTER STREAM BASE URL (SEM TOKEN)
+# ✅ FUNÇÃO CORRIGIDA: OBTER STREAM BASE URL (APENAS servidor:porta)
 # ----------------------------------------------------------------------
 def obter_stream_base(server, username, password):
     """
-    Obtém a URL base do stream (sem token) para um servidor.
+    Obtém a URL base do stream (apenas http://servidor:porta).
     1. Autentica via player_api.php
     2. Obtém lista de canais (get_live_streams)
     3. Escolhe um stream válido
-    4. Monta a URL do stream
-    5. Faz requisição HTTP para forçar geração do token
-    6. Captura URL final e remove tudo após "?"
-    Retorna a URL base sem token ou None em caso de falha.
+    4. Faz requisição HTTP para forçar redirecionamento
+    5. Captura URL final e extrai APENAS http://servidor:porta
+    Retorna a URL base (http://ip:porta) ou None em caso de falha.
     """
     s = nova_session()
     try:
@@ -317,7 +357,6 @@ def obter_stream_base(server, username, password):
             return None
 
         # 2. Escolher um stream válido (tentar os primeiros 5)
-        stream_base_url = None
         formatos = ["ts", "m3u8"]
 
         for stream in streams[:5]:
@@ -330,28 +369,38 @@ def obter_stream_base(server, username, password):
                 stream_url = f"http://{server_clean}/live/{username}/{password}/{stream_id}.{fmt}"
 
                 try:
-                    # 4. Fazer requisição para forçar geração do token
+                    # 4. Fazer requisição para forçar redirecionamento
                     r2 = s.get(stream_url, timeout=6, stream=True, allow_redirects=True)
 
                     # 5. Capturar URL final (após redirecionamentos)
                     url_final = r2.url
 
-                    # Fechar a conexão imediatamente (não precisamos do conteúdo)
+                    # Fechar a conexão imediatamente
                     r2.close()
 
-                    # 6. Remover tudo após "?" (remover token)
-                    if "?" in url_final:
-                        stream_base_url = url_final.split("?")[0]
-                    else:
-                        stream_base_url = url_final
-
-                    if stream_base_url:
-                        return stream_base_url
+                    # 6. EXTRAIR APENAS http://servidor:porta
+                    try:
+                        from urllib.parse import urlparse
+                        parsed = urlparse(url_final)
+                        if parsed.scheme and parsed.hostname:
+                            if parsed.port:
+                                stream_base_url = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
+                            else:
+                                stream_base_url = f"{parsed.scheme}://{parsed.hostname}"
+                            return stream_base_url
+                    except Exception:
+                        # Fallback manual
+                        url_sem_proto = url_final.split("://", 1)
+                        if len(url_sem_proto) == 2:
+                            proto = url_sem_proto[0]
+                            resto = url_sem_proto[1]
+                            servidor_porta = resto.split("/", 1)[0]
+                            return f"{proto}://{servidor_porta}"
 
                 except Exception:
                     continue
 
-        return stream_base_url
+        return None
 
     except Exception:
         return None
@@ -359,22 +408,24 @@ def obter_stream_base(server, username, password):
         s.close()
 
 # ----------------------------------------------------------------------
-# ✅ NOVA FUNÇÃO: SALVA URL BASE NUMERADA SEM DUPLICAR EM novas_urls.txt
+# ✅ FUNÇÃO CORRIGIDA: SALVA URL BASE NUMERADA SEM DUPLICAR
 # ----------------------------------------------------------------------
 def salvar_url_base_estrutura(stream_base):
     """
-    Salva a URL base do stream (sem token) no arquivo novas_urls.txt
+    Salva a URL base do stream (http://servidor:porta) no arquivo novas_urls.txt
     com numeração sequencial no formato:
-    🔰 URL BASE 1: http://servidor:porta/live/user/pass/12345.ts
-    🔰 URL BASE 2: http://servidor:porta/live/user/pass/67890.ts
+    🔰 URL BASE 1: http://208.115.225.194:80
     Evita duplicatas verificando se a URL já existe no arquivo.
     """
     if not stream_base or stream_base == "N/A":
         return
+
     stream_base = stream_base.strip()
+
     with lock:
         if not os.path.exists(URLS_FILE):
             return
+
         try:
             with open(URLS_FILE, "r", encoding="utf-8") as f:
                 linhas = [l.strip() for l in f if l.strip()]
@@ -394,7 +445,7 @@ def salvar_url_base_estrutura(stream_base):
 
         try:
             with open(URLS_FILE, "a", encoding="utf-8") as f:
-                f.write(f"🔰 URL BASE {num}: {stream_base}\n")
+                f.write(f"🔰URL BASE BD {num}: {stream_base}\n")
                 f.flush()
                 try:
                     os.fsync(f.fileno())
@@ -414,10 +465,12 @@ def testar_servidor(server, username, password):
     base_url = f"http://{server}/player_api.php"
     auth_url = f"{base_url}?username={username}&password={password}"
 
-    print(Fore.WHITE + f"\n MIGRAÇÃO EM: {Fore.CYAN}{server}\n")
-    print(Fore.YELLOW + f" USER/PASS: {Fore.CYAN}{username}:{password}\n")
-    print(Fore.GREEN + f" HITS: {hits} " + Fore.RED + f"OFF: {fails}\n")
-    print(Fore.MAGENTA + " ▬▬▬ஜ۩𝑬𝒅𝒊𝒗𝒂𝒍𝒅𝒐۩ஜ▬▬▬    \n")
+    total_hosts = contar_linhas_hosts()
+    print(Fore.YELLOW + "▬▬▬ஜ۩𝑬𝒅𝒊𝒗𝒂𝒍𝒅𝒐۩ஜ▬▬▬")
+    print(Fore.YELLOW + f" MIGRAÇÃO EM: {server}")
+    print(Fore.MAGENTA + f" USER/PASS: {username}:{password}")
+    print(Fore.GREEN + f" HITS: {hits} " + Fore.RED + f"OFF: {fails}")
+    print(Fore.WHITE + f" TOTAL DE LINHAS HOSTS: {total_hosts}\n")
 
     s = nova_session()
     try:
@@ -440,12 +493,9 @@ def testar_servidor(server, username, password):
 
     userinfo = data["user_info"]
     serverinfo = data.get("server_info", {})
-
     criado = formatar_data(userinfo.get("created_at", 0))
     expira = formatar_data(userinfo.get("exp_date", 0))
-
     live, vod, series = contar_conteudo(base_url, username, password)
-
     url_server = serverinfo.get("url", "N/A")
 
     salvar_novo_host(url_server)
@@ -463,11 +513,11 @@ def testar_servidor(server, username, password):
         )
         salvar_url_estrutura(url_server)
 
-    # ✅ NOVA: Obter stream base URL (sem token)
-    print(Fore.YELLOW + "  🔍 Obtendo URL base do stream (sem token)...")
+    # ✅ Obter stream base URL (apenas servidor:porta)
+    print(Fore.YELLOW + "  🔍 Obtendo URL base do stream (servidor:porta)...")
     stream_base = obter_stream_base(server, username, password)
     if stream_base:
-        print(Fore.GREEN + f"  🔰 STREAM BASE (SEM TOKEN): {stream_base}")
+        print(Fore.GREEN + f"  🔰 URL BASE: {stream_base}")
         salvar_url_base_estrutura(stream_base)
     else:
         print(Fore.RED + "  ⚠️ Não foi possível obter a URL base do stream")
@@ -497,9 +547,9 @@ def testar_servidor(server, username, password):
     print(Fore.MAGENTA + f"│ 📺 Séries: {series:<27} │")
     print(Fore.WHITE + "└─────────────────────────────────────────────┘")
 
-    # ✅ NOVA: Exibir stream base no console
+    # ✅ Exibir stream base no console
     if stream_base:
-        print(Fore.GREEN + f"│ 🔗 Stream Base: {stream_base}")
+        print(Fore.GREEN + f"│ 🔗 URL Base: {stream_base}")
 
     print(Fore.CYAN + "\n📋 LINK M3U:")
     print(Fore.WHITE + f"🔗 {m3u_link}")
@@ -524,9 +574,9 @@ def testar_servidor(server, username, password):
 🔎URL: {url_server}
 🔗M3U: {m3u_link}"""
 
-    # ✅ NOVA: Adicionar stream base ao texto de resultado
+    # ✅ Adicionar stream base ao texto de resultado
     if stream_base:
-        texto_resultado += f"\n🔗 STREAM BASE (SEM TOKEN): {stream_base}"
+        texto_resultado += f"\n🔰 URL BASE: {stream_base}"
 
     texto_resultado += "\n▬▬▬ஜ۩𝑬𝒅𝒊𝒗𝒂𝒍𝒅𝒐۩ஜ▬▬▬\n"
 
@@ -564,7 +614,6 @@ def iniciar():
     partes = 10
     tamanho = max(1, len(hosts) // partes)
     threads = []
-
     for i in range(partes):
         bloco = hosts[i * tamanho:(i + 1) * tamanho]
         if bloco:
