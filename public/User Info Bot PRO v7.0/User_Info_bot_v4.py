@@ -621,7 +621,8 @@ def menu_principal_buttons(user_id: int = 0):
              Button.inline("👋 Boas-Vindas", b"cmd_set_welcome")]
         )
         btns.append(
-            [Button.inline("🛡️ Controle de Abuso", b"cmd_abuse_panel")]
+            [Button.inline("🛡️ Controle de Abuso", b"cmd_abuse_panel"),
+             Button.inline("📂 Grupos do Bot", b"cmd_grupos_bot")]
         )
     else:
         btns.append(
