@@ -2207,8 +2207,8 @@ async def text_handler(event):
                     [Button.inline("🔙 Menu Principal", b"cmd_menu")]
                 ])
             else:
-                # Salva resultados para paginação por sender_id
-                last_search_results[sender_id] = {"query": query, "results": results}
+                # Salva resultados para paginação por sender_id com timestamp
+                last_search_results[sender_id] = {"query": query, "results": results, "time": time.time()}
                 await mostrar_resultados_busca(event, query, results, 0, sender_id)
     else:
         await event.reply(
