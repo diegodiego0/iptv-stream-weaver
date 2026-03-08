@@ -26,6 +26,7 @@ FOLDER_PATH = "data"
 FILE_PATH = os.path.join(FOLDER_PATH, "user_database.json")
 LOG_PATH = os.path.join(FOLDER_PATH, "monitor.log")
 CONFIG_PATH = os.path.join(FOLDER_PATH, "bot_config.json")
+GROUPS_FILE_PATH = os.path.join(FOLDER_PATH, "groups_bot.json")
 SESSION_USER = "session_monitor"
 SESSION_BOT = "session_bot"
 
