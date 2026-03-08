@@ -2040,6 +2040,15 @@ _Monitor profissional de usuários_
         elif data == "noop":
             await event.answer()
 
+        # ── Paginação de busca ──
+        elif data.startswith("search_"):
+            page = int(data.replace("search_", ""))
+            cached = last_search_results.get(sender_id)
+            if cached:
+                await mostrar_resultados_busca_edit(message, cached["query"], cached["results"], page, sender_id)
+            else:
+                await event.answer("⚠️ Busca expirada. Faça uma nova busca.", alert=True)
+
         else:
             await event.answer("⚠️ Ação não reconhecida.")
 
