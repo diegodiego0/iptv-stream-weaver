@@ -1290,6 +1290,74 @@ async def welcome_handler(event):
 
 
 # ══════════════════════════════════════════════
+# 🚫  HANDLER: Detecta outros bots no tópico configurado
+# ══════════════════════════════════════════════
+
+@bot.on(events.NewMessage(func=lambda e: not e.is_private))
+async def detect_other_bots_in_topic(event):
+    """
+    Detecta quando outro bot responde no tópico configurado.
+    Apaga a mensagem e avisa o bot intruso.
+    """
+    try:
+        # Verifica se o remetente é um bot
+        sender = await event.get_sender()
+        if not sender or not getattr(sender, 'bot', False):
+            return  # Não é um bot, ignora
+        
+        # Verifica se não somos nós mesmos
+        me = await bot.get_me()
+        if sender.id == me.id:
+            return
+        
+        chat_id = str(event.chat_id)
+        cfg = carregar_config()
+        topico_configurado = cfg.get("topicos", {}).get(chat_id)
+        
+        if not topico_configurado:
+            return  # Sem tópico configurado neste grupo
+        
+        # Verifica se a mensagem está no tópico configurado
+        mensagem_topic_id = None
+        if hasattr(event, 'reply_to') and event.reply_to:
+            mensagem_topic_id = getattr(event.reply_to, 'reply_to_top_id', None) or getattr(event.reply_to, 'reply_to_msg_id', None)
+        
+        if mensagem_topic_id == topico_configurado:
+            # Outro bot postou no NOSSO tópico! Apaga e avisa
+            try:
+                # Tenta apagar a mensagem do bot intruso
+                await event.delete()
+                log(f"🚫 Mensagem de bot @{sender.username or sender.id} apagada no tópico {topico_configurado}")
+                
+                # Envia aviso no mesmo tópico
+                aviso = (
+                    f"🚫 **Ei @{sender.username or 'bot safado'}!**\n\n"
+                    f"Aqui não, bot safado! 👎\n"
+                    f"Vai procurar outro tópico pra você que esse já tem dono que sou eu! 😤\n"
+                    f"Pega o beco! 🏃‍♂️💨"
+                )
+                await bot.send_message(
+                    event.chat_id,
+                    aviso,
+                    parse_mode='md',
+                    reply_to=topico_configurado
+                )
+                
+            except Exception as e:
+                # Se não conseguiu apagar (sem permissão), apenas avisa
+                log(f"⚠️ Não foi possível apagar mensagem de bot: {e}")
+                await bot.send_message(
+                    event.chat_id,
+                    f"🚫 Ei @{sender.username or 'bot safado'}! Aqui não, bot safado! 👎\n"
+                    f"Esse tópico já tem dono que sou eu — pega o beco! 🏃‍♂️💨",
+                    parse_mode='md',
+                    reply_to=topico_configurado
+                )
+    except Exception as e:
+        log(f"⚠️ Erro ao detectar bot intruso: {e}")
+
+
+# ══════════════════════════════════════════════
 # 📜  COMANDO: Regras do Grupo
 # ══════════════════════════════════════════════
 
@@ -1342,15 +1410,28 @@ _Respeite as regras para uma boa convivência!_"""
 # 🔍  BUSCA VIA @InforUser_Bot + termo (em grupos)
 # ══════════════════════════════════════════════
 
+def pode_consultar_api(query: str) -> bool:
+    """Verifica se a query é adequada para consulta via API (id ou username, não apenas nome)."""
+    query_clean = query.strip().lstrip('@')
+    # É ID numérico
+    if query_clean.isdigit():
+        return True
+    # Parece username (sem espaços, caracteres válidos)
+    if query.startswith('@') or (len(query_clean) >= 3 and ' ' not in query_clean and query_clean.replace('_', '').isalnum()):
+        return True
+    return False
+
+
 @bot.on(events.NewMessage(pattern=rf'@{BOT_USERNAME}\s+(.+)', func=lambda e: not e.is_private))
 async def cmd_buscar_mention(event):
-    """Busca ativada por @InforUser_Bot + termo no grupo."""
+    """Busca ativada por @InforUser_Bot + termo no grupo. Aguarda até conclusão."""
     global scan_paused
     scan_paused = True
     await registrar_interacao(event)
+    sender_id = event.sender_id
 
     # Verifica abuso
-    abuse = verificar_abuso(event.sender_id)
+    abuse = verificar_abuso(sender_id)
     if not abuse["permitido"]:
         sender = await event.get_sender()
         await responder_evento(event, abuse["motivo"])
@@ -1362,39 +1443,56 @@ async def cmd_buscar_mention(event):
         return
 
     query = event.pattern_match.group(1).strip()
-    results = buscar_usuario(query)
+    
+    # Inicia indicador de digitando e aguarda até conclusão
+    typing_id = iniciar_digitando(event.chat_id, sender_id)
+    
+    try:
+        results = buscar_usuario(query)
 
-    if not results:
-        # Consulta via API do Telegram
-        await responder_evento(event, f"🔍 Buscando `{query}` via API do Telegram...\n⏳ _Aguarde..._")
-        api_result = await consultar_api_telegram(query, event)
-        if api_result:
-            results = [api_result]
+        if not results:
+            # Só consulta API se for ID ou username (não busca por nome via API)
+            if pode_consultar_api(query):
+                await responder_evento(event, f"🔍 Buscando `{query}` via API do Telegram...\n⏳ _Aguarde, consultando..._")
+                api_result = await consultar_api_telegram(query, event)
+                if api_result:
+                    results = [api_result]
+            
+            if not results:
+                parar_digitando(typing_id)
+                msg = f"❌ **Nenhum resultado para** `{query}`\n\n"
+                if not pode_consultar_api(query):
+                    msg += "💡 Para buscar via API do Telegram, use **ID numérico** ou **@username**.\n"
+                    msg += "_Busca por nome só funciona no banco de dados local._"
+                else:
+                    msg += "💡 Tente buscar por outro ID ou @username."
+                await responder_evento(event, msg, buttons=voltar_button())
+                scan_paused = False
+                return
+
+        parar_digitando(typing_id)
+
+        if len(results) == 1:
+            await responder_evento(event, formatar_perfil(results[0]), buttons=[
+                [Button.inline("📜 Histórico", f"hist_{results[0]['id']}_0".encode()),
+                 Button.inline("📂 Grupos", f"ugroups_{results[0]['id']}_0".encode())],
+                [Button.inline("🔙 Menu", b"cmd_menu")]
+            ])
         else:
-            await responder_evento(
-                event,
-                f"❌ **Nenhum resultado para** `{query}`\n\n💡 Tente buscar por ID numérico, @username ou nome.",
-                buttons=voltar_button()
-            )
-            scan_paused = False
-            return
-
-    if len(results) == 1:
-        await responder_evento(event, formatar_perfil(results[0]), buttons=[
-            [Button.inline("📜 Histórico", f"hist_{results[0]['id']}_0".encode()),
-             Button.inline("📂 Grupos", f"ugroups_{results[0]['id']}_0".encode())],
-            [Button.inline("🔙 Menu", b"cmd_menu")]
-        ])
-    else:
-        text = f"🔍 **{len(results)} resultados para** `{query}`:\n\n"
-        btns = []
-        for r in results[:ITEMS_PER_PAGE]:
-            label = f"👤 {r['nome_atual']} | {r['username_atual']}"
-            btns.append([Button.inline(label[:40], f"profile_{r['id']}".encode())])
-        btns.append([Button.inline("🔙 Menu", b"cmd_menu")])
-        await responder_evento(event, text, buttons=btns)
-
-    scan_paused = False
+            # Salva para paginação
+            last_search_results[sender_id] = {"query": query, "results": results, "time": time.time()}
+            text = f"🔍 **{len(results)} resultados para** `{query}`:\n\n"
+            btns = []
+            for r in results[:ITEMS_PER_PAGE]:
+                label = f"👤 {r['nome_atual']} | {r['username_atual']}"
+                btns.append([Button.inline(label[:40], f"profile_{r['id']}".encode())])
+            if len(results) > ITEMS_PER_PAGE:
+                btns.append([Button.inline("Próxima ▶️", b"search_1")])
+            btns.append([Button.inline("🔙 Menu", b"cmd_menu")])
+            await responder_evento(event, text, buttons=btns)
+    finally:
+        parar_digitando(typing_id)
+        scan_paused = False
 
 
 # ══════════════════════════════════════════════
@@ -1510,7 +1608,8 @@ async def mostrar_resultados_busca_edit(message, query, results, page, sender_id
 # ══════════════════════════════════════════════
 
 search_pending = {}        # sender_id -> mode (True ou "grupos")
-last_search_results = {}   # sender_id -> {"query": ..., "results": ...}
+last_search_results = {}   # sender_id -> {"query": ..., "results": ..., "time": timestamp}
+SEARCH_CACHE_TTL = 300     # 5 minutos de cache para paginação
 
 @bot.on(events.CallbackQuery)
 async def callback_handler(event):
@@ -2070,10 +2169,38 @@ _Monitor profissional de usuários_
         elif data.startswith("search_"):
             page = int(data.replace("search_", ""))
             cached = last_search_results.get(sender_id)
-            if cached:
+            
+            # Se cache existe e não expirou
+            if cached and (time.time() - cached.get("time", 0)) < SEARCH_CACHE_TTL:
                 await mostrar_resultados_busca_edit(message, cached["query"], cached["results"], page, sender_id)
+            elif cached and cached.get("query"):
+                # Cache expirou mas temos a query - refaz a busca automaticamente
+                query = cached["query"]
+                await event.answer("🔄 Atualizando resultados...", alert=False)
+                results = buscar_usuario(query)
+                if results:
+                    last_search_results[sender_id] = {"query": query, "results": results, "time": time.time()}
+                    await mostrar_resultados_busca_edit(message, query, results, page, sender_id)
+                else:
+                    await message.edit("❌ Nenhum resultado encontrado.", parse_mode='md', buttons=voltar_button())
             else:
-                await event.answer("⚠️ Busca expirada. Faça uma nova busca.", alert=True)
+                # Sem cache - pede nova busca
+                search_pending[sender_id] = True
+                await message.edit(
+                    """🔍 **Busca expirada — Faça uma nova busca**
+
+━━━━━━━━━━━━━━━━━━━━━
+📝 **Envie** o termo de busca:
+
+• 🔢 **ID numérico** — ex: `123456789`
+• 🆔 **@username** — ex: `@exemplo`
+• 📛 **Nome** (parcial) — ex: `João`
+
+━━━━━━━━━━━━━━━━━━━━━
+_Aguardando..._""",
+                    parse_mode='md',
+                    buttons=voltar_button()
+                )
 
         else:
             await event.answer("⚠️ Ação não reconhecida.")
@@ -2178,8 +2305,8 @@ async def text_handler(event):
                     [Button.inline("🔙 Menu Principal", b"cmd_menu")]
                 ])
             else:
-                # Salva resultados para paginação por sender_id
-                last_search_results[sender_id] = {"query": query, "results": results}
+                # Salva resultados para paginação por sender_id com timestamp
+                last_search_results[sender_id] = {"query": query, "results": results, "time": time.time()}
                 await mostrar_resultados_busca(event, query, results, 0, sender_id)
     else:
         await event.reply(
