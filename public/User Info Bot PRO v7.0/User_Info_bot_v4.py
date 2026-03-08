@@ -1701,7 +1701,7 @@ _Créditos: @Edkd1_""",
 
         # ── Grupos do Usuário (buscar) ──
         elif data == "cmd_grupos":
-            search_pending[chat_id] = "grupos"
+            search_pending[sender_id] = "grupos"
             await message.edit(
                 """📂 **Buscar Grupos de um Usuário**
 
