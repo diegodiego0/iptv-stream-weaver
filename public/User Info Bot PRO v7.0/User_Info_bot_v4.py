@@ -1483,8 +1483,8 @@ async def mostrar_resultados_busca(event_or_msg, query, results, page):
 # 🔘  HANDLERS DE CALLBACK (BOTÕES INLINE)
 # ══════════════════════════════════════════════
 
-search_pending = {}
-last_search_results = {}  # Cache dos resultados de busca para paginação
+search_pending = {}        # sender_id -> mode (True ou "grupos")
+last_search_results = {}   # sender_id -> {"query": ..., "results": ...}
 
 @bot.on(events.CallbackQuery)
 async def callback_handler(event):
