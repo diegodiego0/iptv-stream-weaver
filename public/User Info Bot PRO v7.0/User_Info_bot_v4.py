@@ -1504,6 +1504,14 @@ async def mostrar_resultados_busca_edit(message, query, results, page, sender_id
 
     await message.edit(text, parse_mode='md', buttons=btns)
 
+
+# ══════════════════════════════════════════════
+# 🔘  HANDLERS DE CALLBACK (BOTÕES INLINE)
+# ══════════════════════════════════════════════
+
+search_pending = {}        # sender_id -> mode (True ou "grupos")
+last_search_results = {}   # sender_id -> {"query": ..., "results": ...}
+
 @bot.on(events.CallbackQuery)
 async def callback_handler(event):
     global scan_paused
