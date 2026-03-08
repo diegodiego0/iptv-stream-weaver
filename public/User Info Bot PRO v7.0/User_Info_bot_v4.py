@@ -1513,7 +1513,7 @@ Selecione uma opção:""",
 
         # ── Buscar ──
         elif data == "cmd_buscar":
-            search_pending[chat_id] = True
+            search_pending[sender_id] = True
             await message.edit(
                 """🔍 **Modo de Busca Ativo**
 
