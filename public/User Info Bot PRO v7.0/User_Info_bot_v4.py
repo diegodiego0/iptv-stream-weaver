@@ -362,10 +362,12 @@ async def consultar_api_telegram(query: str, event=None) -> dict | None:
     Salva resultado no banco para consultas futuras.
     """
     try:
-        # Mantém status digitando
+        # Mantém status digitando (cancelável)
+        typing_task_id = None
         if event:
             chat_id = event.chat_id
-            asyncio.create_task(_manter_digitando(chat_id, event))
+            sender_id = getattr(event, 'sender_id', 0)
+            typing_task_id = iniciar_digitando(chat_id, sender_id)
 
         entity = None
         # Tenta por ID numérico
