@@ -432,10 +432,14 @@ async def consultar_api_telegram(query: str, event=None) -> dict | None:
                 db[uid]["telefone"] = phone
             salvar_dados(db)
 
+        if typing_task_id:
+            parar_digitando(typing_task_id)
         return db[uid]
 
     except Exception as e:
         log(f"⚠️ Erro na consulta API: {e}")
+        if typing_task_id:
+            parar_digitando(typing_task_id)
         return None
 
 
