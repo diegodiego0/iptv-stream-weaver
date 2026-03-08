@@ -1901,15 +1901,18 @@ _Monitor profissional de usuários_
 • 🔒 Pausa durante interações
 • 🆕 Auto-criação do banco
 • 📌 Suporte a Tópicos (forum threads)
-• 👋 Boas-vindas customizáveis
+• 👋 Boas-vindas no chat principal (personalizáveis)
 • 📜 Regras do grupo (/regras)
 • 🛡️ Controle de abuso (rate limit + ban)
 • 📱 Captura de telefone
 • 🔍 Busca via @{BOT_USERNAME} + termo
+• 📂 Registro automático de grupos (/gruposbot)
+• 🚪 Detecta entrada/saída do bot em grupos
+• ⚡ Cache em memória para respostas rápidas
 
 **Tecnologia:**
-• ⚡ Telethon (asyncio)
-• 💾 Banco JSON local
+• ⚡ Telethon (asyncio) + Cache inteligente
+• 💾 Banco JSON local + groups_bot.json
 • 🛡️ Anti-flood + Anti-abuso
 • 🔄 Lock de operações
 • 📡 API Telegram fallback
