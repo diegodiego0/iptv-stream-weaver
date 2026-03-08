@@ -1342,15 +1342,28 @@ _Respeite as regras para uma boa convivência!_"""
 # 🔍  BUSCA VIA @InforUser_Bot + termo (em grupos)
 # ══════════════════════════════════════════════
 
+def pode_consultar_api(query: str) -> bool:
+    """Verifica se a query é adequada para consulta via API (id ou username, não apenas nome)."""
+    query_clean = query.strip().lstrip('@')
+    # É ID numérico
+    if query_clean.isdigit():
+        return True
+    # Parece username (sem espaços, caracteres válidos)
+    if query.startswith('@') or (len(query_clean) >= 3 and ' ' not in query_clean and query_clean.replace('_', '').isalnum()):
+        return True
+    return False
+
+
 @bot.on(events.NewMessage(pattern=rf'@{BOT_USERNAME}\s+(.+)', func=lambda e: not e.is_private))
 async def cmd_buscar_mention(event):
-    """Busca ativada por @InforUser_Bot + termo no grupo."""
+    """Busca ativada por @InforUser_Bot + termo no grupo. Aguarda até conclusão."""
     global scan_paused
     scan_paused = True
     await registrar_interacao(event)
+    sender_id = event.sender_id
 
     # Verifica abuso
-    abuse = verificar_abuso(event.sender_id)
+    abuse = verificar_abuso(sender_id)
     if not abuse["permitido"]:
         sender = await event.get_sender()
         await responder_evento(event, abuse["motivo"])
@@ -1362,39 +1375,56 @@ async def cmd_buscar_mention(event):
         return
 
     query = event.pattern_match.group(1).strip()
-    results = buscar_usuario(query)
+    
+    # Inicia indicador de digitando e aguarda até conclusão
+    typing_id = iniciar_digitando(event.chat_id, sender_id)
+    
+    try:
+        results = buscar_usuario(query)
 
-    if not results:
-        # Consulta via API do Telegram
-        await responder_evento(event, f"🔍 Buscando `{query}` via API do Telegram...\n⏳ _Aguarde..._")
-        api_result = await consultar_api_telegram(query, event)
-        if api_result:
-            results = [api_result]
+        if not results:
+            # Só consulta API se for ID ou username (não busca por nome via API)
+            if pode_consultar_api(query):
+                await responder_evento(event, f"🔍 Buscando `{query}` via API do Telegram...\n⏳ _Aguarde, consultando..._")
+                api_result = await consultar_api_telegram(query, event)
+                if api_result:
+                    results = [api_result]
+            
+            if not results:
+                parar_digitando(typing_id)
+                msg = f"❌ **Nenhum resultado para** `{query}`\n\n"
+                if not pode_consultar_api(query):
+                    msg += "💡 Para buscar via API do Telegram, use **ID numérico** ou **@username**.\n"
+                    msg += "_Busca por nome só funciona no banco de dados local._"
+                else:
+                    msg += "💡 Tente buscar por outro ID ou @username."
+                await responder_evento(event, msg, buttons=voltar_button())
+                scan_paused = False
+                return
+
+        parar_digitando(typing_id)
+
+        if len(results) == 1:
+            await responder_evento(event, formatar_perfil(results[0]), buttons=[
+                [Button.inline("📜 Histórico", f"hist_{results[0]['id']}_0".encode()),
+                 Button.inline("📂 Grupos", f"ugroups_{results[0]['id']}_0".encode())],
+                [Button.inline("🔙 Menu", b"cmd_menu")]
+            ])
         else:
-            await responder_evento(
-                event,
-                f"❌ **Nenhum resultado para** `{query}`\n\n💡 Tente buscar por ID numérico, @username ou nome.",
-                buttons=voltar_button()
-            )
-            scan_paused = False
-            return
-
-    if len(results) == 1:
-        await responder_evento(event, formatar_perfil(results[0]), buttons=[
-            [Button.inline("📜 Histórico", f"hist_{results[0]['id']}_0".encode()),
-             Button.inline("📂 Grupos", f"ugroups_{results[0]['id']}_0".encode())],
-            [Button.inline("🔙 Menu", b"cmd_menu")]
-        ])
-    else:
-        text = f"🔍 **{len(results)} resultados para** `{query}`:\n\n"
-        btns = []
-        for r in results[:ITEMS_PER_PAGE]:
-            label = f"👤 {r['nome_atual']} | {r['username_atual']}"
-            btns.append([Button.inline(label[:40], f"profile_{r['id']}".encode())])
-        btns.append([Button.inline("🔙 Menu", b"cmd_menu")])
-        await responder_evento(event, text, buttons=btns)
-
-    scan_paused = False
+            # Salva para paginação
+            last_search_results[sender_id] = {"query": query, "results": results, "time": time.time()}
+            text = f"🔍 **{len(results)} resultados para** `{query}`:\n\n"
+            btns = []
+            for r in results[:ITEMS_PER_PAGE]:
+                label = f"👤 {r['nome_atual']} | {r['username_atual']}"
+                btns.append([Button.inline(label[:40], f"profile_{r['id']}".encode())])
+            if len(results) > ITEMS_PER_PAGE:
+                btns.append([Button.inline("Próxima ▶️", b"search_1")])
+            btns.append([Button.inline("🔙 Menu", b"cmd_menu")])
+            await responder_evento(event, text, buttons=btns)
+    finally:
+        parar_digitando(typing_id)
+        scan_paused = False
 
 
 # ══════════════════════════════════════════════
