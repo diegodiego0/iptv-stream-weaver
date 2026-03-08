@@ -2071,10 +2071,38 @@ _Monitor profissional de usuários_
         elif data.startswith("search_"):
             page = int(data.replace("search_", ""))
             cached = last_search_results.get(sender_id)
-            if cached:
+            
+            # Se cache existe e não expirou
+            if cached and (time.time() - cached.get("time", 0)) < SEARCH_CACHE_TTL:
                 await mostrar_resultados_busca_edit(message, cached["query"], cached["results"], page, sender_id)
+            elif cached and cached.get("query"):
+                # Cache expirou mas temos a query - refaz a busca automaticamente
+                query = cached["query"]
+                await event.answer("🔄 Atualizando resultados...", alert=False)
+                results = buscar_usuario(query)
+                if results:
+                    last_search_results[sender_id] = {"query": query, "results": results, "time": time.time()}
+                    await mostrar_resultados_busca_edit(message, query, results, page, sender_id)
+                else:
+                    await message.edit("❌ Nenhum resultado encontrado.", parse_mode='md', buttons=voltar_button())
             else:
-                await event.answer("⚠️ Busca expirada. Faça uma nova busca.", alert=True)
+                # Sem cache - pede nova busca
+                search_pending[sender_id] = True
+                await message.edit(
+                    """🔍 **Busca expirada — Faça uma nova busca**
+
+━━━━━━━━━━━━━━━━━━━━━
+📝 **Envie** o termo de busca:
+
+• 🔢 **ID numérico** — ex: `123456789`
+• 🆔 **@username** — ex: `@exemplo`
+• 📛 **Nome** (parcial) — ex: `João`
+
+━━━━━━━━━━━━━━━━━━━━━
+_Aguardando..._""",
+                    parse_mode='md',
+                    buttons=voltar_button()
+                )
 
         else:
             await event.answer("⚠️ Ação não reconhecida.")
