@@ -437,14 +437,35 @@ async def consultar_api_telegram(query: str, event=None) -> dict | None:
         return None
 
 
-async def _manter_digitando(chat_id: int, event):
-    """Mantém o status 'digitando' enquanto a consulta está em andamento."""
+_typing_tasks = {}  # chat_id -> asyncio.Task para cancelar digitando
+
+async def _manter_digitando(chat_id: int, task_id: str):
+    """Mantém o status 'digitando' enquanto a consulta está em andamento. Cancelável."""
     try:
-        for _ in range(30):  # Máximo 30 segundos
+        for _ in range(30):
             async with bot.action(chat_id, 'typing'):
                 await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        pass
     except Exception:
         pass
+    finally:
+        _typing_tasks.pop(task_id, None)
+
+
+def iniciar_digitando(chat_id: int, sender_id: int):
+    """Inicia indicador de digitando e retorna o task_id para cancelar depois."""
+    task_id = f"{chat_id}_{sender_id}_{time.time()}"
+    task = asyncio.create_task(_manter_digitando(chat_id, task_id))
+    _typing_tasks[task_id] = task
+    return task_id
+
+
+def parar_digitando(task_id: str):
+    """Cancela o indicador de digitando."""
+    task = _typing_tasks.pop(task_id, None)
+    if task and not task.done():
+        task.cancel()
 
 
 # ══════════════════════════════════════════════
