@@ -1449,7 +1449,7 @@ async def cmd_buscar_text(event):
     scan_paused = False
 
 
-async def mostrar_resultados_busca(event_or_msg, query, results, page):
+async def mostrar_resultados_busca(event_or_msg, query, results, page, sender_id=0):
     """Mostra resultados de busca com paginação de 10 itens."""
     total = len(results)
     total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
@@ -1479,12 +1479,30 @@ async def mostrar_resultados_busca(event_or_msg, query, results, page):
         await event_or_msg.edit(text, parse_mode='md', buttons=btns)
 
 
-# ══════════════════════════════════════════════
-# 🔘  HANDLERS DE CALLBACK (BOTÕES INLINE)
-# ══════════════════════════════════════════════
+async def mostrar_resultados_busca_edit(message, query, results, page, sender_id=0):
+    """Edita mensagem com resultados de busca paginados."""
+    total = len(results)
+    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+    page = min(page, total_pages - 1)
+    start = page * ITEMS_PER_PAGE
+    chunk = results[start:start + ITEMS_PER_PAGE]
 
-search_pending = {}        # sender_id -> mode (True ou "grupos")
-last_search_results = {}   # sender_id -> {"query": ..., "results": ...}
+    text = f"🔍 **{total} resultados para** `{query}` (pág. {page + 1}/{total_pages}):\n\n"
+    btns = []
+    for r in chunk:
+        label = f"👤 {r['nome_atual']} | {r['username_atual']}"
+        btns.append([Button.inline(label[:40], f"profile_{r['id']}".encode())])
+
+    nav = []
+    if page > 0:
+        nav.append(Button.inline("◀️ Anterior", f"search_{page - 1}".encode()))
+    if page < total_pages - 1:
+        nav.append(Button.inline("Próxima ▶️", f"search_{page + 1}".encode()))
+    if nav:
+        btns.append(nav)
+    btns.append([Button.inline("🔙 Menu Principal", b"cmd_menu")])
+
+    await message.edit(text, parse_mode='md', buttons=btns)
 
 @bot.on(events.CallbackQuery)
 async def callback_handler(event):
