@@ -1044,6 +1044,44 @@ async def cmd_unset_topic(event):
 
 
 # ══════════════════════════════════════════════
+# 📂  COMANDO: Listar Grupos do Bot (Admin)
+# ══════════════════════════════════════════════
+
+@bot.on(events.NewMessage(pattern='/gruposbot'))
+async def cmd_grupos_bot(event):
+    """Lista todos os grupos onde o bot foi adicionado."""
+    await registrar_interacao(event)
+    if not is_admin(event.sender_id):
+        await responder_evento(event, "🔒 Apenas o administrador pode ver os grupos do bot.")
+        return
+
+    grupos = carregar_grupos_bot()
+    if not grupos:
+        await responder_evento(event, "📂 O bot ainda não foi adicionado a nenhum grupo.", buttons=voltar_button())
+        return
+
+    ativos = {k: v for k, v in grupos.items() if v.get("ativo", True)}
+    inativos = {k: v for k, v in grupos.items() if not v.get("ativo", True)}
+
+    text = f"📂 **GRUPOS DO BOT** — {len(ativos)} ativos, {len(inativos)} removidos\n\n"
+    
+    for gid, info in list(ativos.items())[:15]:
+        text += f"✅ **{info['nome']}**\n"
+        text += f"   🔢 ID: `{info['id']}`\n"
+        text += f"   🆔 Username: `{info['username']}`\n"
+        text += f"   🔗 Link: `{info['link']}`\n"
+        text += f"   📅 Desde: `{info.get('adicionado_em', 'N/A')}`\n\n"
+
+    if inativos:
+        text += f"\n🚫 **Removidos ({len(inativos)}):**\n"
+        for gid, info in list(inativos.items())[:5]:
+            text += f"   ❌ {info['nome']} — removido em `{info.get('removido_em', '?')}`\n"
+
+    text += f"\n_Total: {len(grupos)} grupos registrados_\n_Créditos: @Edkd1_"
+    await responder_evento(event, text, buttons=voltar_button())
+
+
+# ══════════════════════════════════════════════
 # 👋  COMANDO: Boas-Vindas Customizáveis
 # ══════════════════════════════════════════════
 
