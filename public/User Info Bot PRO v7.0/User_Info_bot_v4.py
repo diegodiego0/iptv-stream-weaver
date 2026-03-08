@@ -1738,6 +1738,25 @@ Use os comandos **dentro do grupo**:
                 buttons=voltar_button()
             )
 
+        # ── Grupos do Bot (via botão) ──
+        elif data == "cmd_grupos_bot":
+            if not is_admin(sender_id):
+                await event.answer("🔒 Apenas o administrador.", alert=True)
+                scan_paused = False
+                return
+            grupos = carregar_grupos_bot()
+            if not grupos:
+                await message.edit("📂 O bot ainda não foi adicionado a nenhum grupo.", parse_mode='md', buttons=voltar_button())
+            else:
+                ativos = {k: v for k, v in grupos.items() if v.get("ativo", True)}
+                text = f"📂 **GRUPOS DO BOT** — {len(ativos)} ativos\n\n"
+                for gid, info in list(ativos.items())[:10]:
+                    text += f"✅ **{info['nome']}**\n"
+                    text += f"   🔢 `{info['id']}` | 🆔 `{info['username']}`\n"
+                    text += f"   🔗 `{info['link']}`\n\n"
+                text += f"_Total: {len(grupos)} grupos_\n_Use /gruposbot para detalhes_"
+                await message.edit(text, parse_mode='md', buttons=voltar_button())
+
         # ── Painel de Abuso ──
         elif data == "cmd_abuse_panel":
             if not is_admin(sender_id):
