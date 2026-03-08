@@ -1097,74 +1097,130 @@ async def cmd_unset_welcome(event):
 
 
 # ══════════════════════════════════════════════
-# 👋  HANDLER: Novos Membros (Saudação)
+# 👋  HANDLER: Novos Membros + Bot Adicionado
 # ══════════════════════════════════════════════
 
 @bot.on(events.ChatAction)
 async def welcome_handler(event):
-    """Saúda novos membros com mensagem customizável."""
-    if not event.user_joined and not event.user_added:
-        return
-
+    """Saúda novos membros e registra quando o bot é adicionado a um grupo."""
     try:
-        user = await event.get_user()
-        if not user or user.bot:
-            return
-
         chat = await event.get_chat()
         chat_id = str(event.chat_id)
-        nome = user.first_name or "Novo membro"
-        mention = f"[{nome}](tg://user?id={user.id})"
-        grupo_nome = getattr(chat, 'title', 'Grupo')
 
-        # Registra o usuário no banco
-        uid = str(user.id)
-        db = carregar_dados()
-        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        if uid not in db:
-            username = f"@{user.username}" if user.username else "Nenhum"
-            db[uid] = {
-                "id": user.id,
-                "nome_atual": f"{user.first_name or ''} {user.last_name or ''}".strip() or "Sem nome",
-                "username_atual": username,
-                "grupos": [grupo_nome],
-                "primeiro_registro": agora,
-                "historico": [],
-                "origem": "entrada_grupo"
-            }
-            if hasattr(user, 'phone') and user.phone:
-                db[uid]["telefone"] = user.phone
-            salvar_dados(db)
-        else:
-            if "grupos" not in db[uid]:
-                db[uid]["grupos"] = []
-            if grupo_nome not in db[uid]["grupos"]:
-                db[uid]["grupos"].append(grupo_nome)
+        # ── Detecta se O BOT foi adicionado ao grupo ──
+        if event.user_added or event.user_joined:
+            user = await event.get_user()
+            if not user:
+                return
+
+            me = await bot.get_me()
+            if user.id == me.id:
+                # Bot foi adicionado! Registra o grupo
+                adicionado_por_info = None
+                if event.user_added:
+                    try:
+                        adder = await event.get_added_by()
+                        if adder:
+                            adicionado_por_info = f"{adder.first_name or ''} ({adder.id})"
+                    except Exception:
+                        pass
+                await registrar_grupo_bot(chat, adicionado_por=adicionado_por_info)
+                
+                # Mensagem de apresentação no chat principal
+                grupo_nome = getattr(chat, 'title', 'Grupo')
+                await bot.send_message(
+                    event.chat_id,
+                    f"👋 **Olá, {grupo_nome}!**\n\n"
+                    f"Sou o **User Info Bot Pro v7.0** 🕵️\n\n"
+                    f"📋 **O que eu faço:**\n"
+                    f"• 👋 Saúdo novos membros automaticamente\n"
+                    f"• 🔍 Busco informações de usuários\n"
+                    f"• 📊 Monitoro alterações de perfil\n\n"
+                    f"⚙️ **Para o dono do grupo:**\n"
+                    f"• `/setwelcome Sua mensagem` — Personalizar boas-vindas\n"
+                    f"• `/unsetwelcome` — Restaurar padrão\n"
+                    f"• `/regras` — Exibir regras do grupo\n\n"
+                    f"💡 Variáveis: `{{mention}}`, `{{nome}}`, `{{grupo}}`, `{{id}}`\n\n"
+                    f"_Créditos: @Edkd1_",
+                    parse_mode='md'
+                )
+                return
+
+            # ── Usuário normal entrou — saudação ──
+            if user.bot:
+                return
+
+            grupo_nome = getattr(chat, 'title', 'Grupo')
+            nome = user.first_name or "Novo membro"
+            mention = f"[{nome}](tg://user?id={user.id})"
+
+            # Registra o usuário no banco
+            uid = str(user.id)
+            db = carregar_dados()
+            agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            if uid not in db:
+                username = f"@{user.username}" if user.username else "Nenhum"
+                db[uid] = {
+                    "id": user.id,
+                    "nome_atual": f"{user.first_name or ''} {user.last_name or ''}".strip() or "Sem nome",
+                    "username_atual": username,
+                    "grupos": [grupo_nome],
+                    "primeiro_registro": agora,
+                    "historico": [],
+                    "origem": "entrada_grupo"
+                }
+                if hasattr(user, 'phone') and user.phone:
+                    db[uid]["telefone"] = user.phone
                 salvar_dados(db)
+            else:
+                if "grupos" not in db[uid]:
+                    db[uid]["grupos"] = []
+                if grupo_nome not in db[uid]["grupos"]:
+                    db[uid]["grupos"].append(grupo_nome)
+                    salvar_dados(db)
 
-        # Mensagem de boas-vindas
-        cfg = carregar_config()
-        msg_template = cfg.get("boas_vindas", {}).get(chat_id)
+            # Registra o grupo também
+            await registrar_grupo_bot(chat)
 
-        if msg_template:
-            msg = msg_template.format(
-                mention=mention,
-                nome=nome,
-                grupo=grupo_nome,
-                id=user.id
-            )
-        else:
-            msg = (
-                f"👋 Bem-vindo(a), {mention}!\n\n"
-                f"Seja bem-vindo(a) ao **{grupo_nome}**! 🎉\n"
-                f"Use `/regras` para ver as regras do grupo."
-            )
+            # Mensagem de boas-vindas — SEMPRE no chat principal (sem reply_to tópico)
+            cfg = carregar_config()
+            msg_template = cfg.get("boas_vindas", {}).get(chat_id)
 
-        reply_kwargs = get_reply_to(event)
-        await bot.send_message(event.chat_id, msg, parse_mode='md', **reply_kwargs)
+            if msg_template:
+                try:
+                    msg = msg_template.format(
+                        mention=mention,
+                        nome=nome,
+                        grupo=grupo_nome,
+                        id=user.id
+                    )
+                except (KeyError, IndexError):
+                    msg = msg_template  # Se template inválido, envia como está
+            else:
+                msg = (
+                    f"👋 {mention} seja bem-vindo(a) ao **{grupo_nome}**! 🎉\n"
+                    f"Use `/regras` para ver as regras do grupo."
+                )
+
+            # Envia NO CHAT PRINCIPAL (sem reply_to para não ir em tópico)
+            await bot.send_message(event.chat_id, msg, parse_mode='md')
+
+        # ── Detecta se o bot foi removido do grupo ──
+        elif event.user_left or event.user_kicked:
+            user = await event.get_user()
+            if user:
+                me = await bot.get_me()
+                if user.id == me.id:
+                    grupos = carregar_grupos_bot()
+                    if chat_id in grupos:
+                        grupos[chat_id]["ativo"] = False
+                        grupos[chat_id]["removido_em"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                        salvar_grupos_bot(grupos)
+                    grupo_nome = getattr(chat, 'title', 'Grupo')
+                    await notificar(f"🚫 **Bot removido do grupo:** {grupo_nome} (`{chat_id}`)")
 
     except Exception as e:
-        log(f"⚠️ Erro no welcome: {e}")
+        log(f"⚠️ Erro no welcome/group handler: {e}")
 
 
 # ══════════════════════════════════════════════
