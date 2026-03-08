@@ -1510,7 +1510,8 @@ async def mostrar_resultados_busca_edit(message, query, results, page, sender_id
 # ══════════════════════════════════════════════
 
 search_pending = {}        # sender_id -> mode (True ou "grupos")
-last_search_results = {}   # sender_id -> {"query": ..., "results": ...}
+last_search_results = {}   # sender_id -> {"query": ..., "results": ..., "time": timestamp}
+SEARCH_CACHE_TTL = 300     # 5 minutos de cache para paginação
 
 @bot.on(events.CallbackQuery)
 async def callback_handler(event):
