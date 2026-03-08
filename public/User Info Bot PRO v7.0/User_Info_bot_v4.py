@@ -6,10 +6,12 @@ from datetime import datetime
 from telethon import TelegramClient, events, Button
 from telethon.errors import FloodWaitError, UserNotParticipantError
 from telethon.tl.functions.users import GetFullUserRequest
-from telethon.tl.functions.channels import GetParticipantRequest
+from telethon.tl.functions.channels import GetParticipantRequest, GetFullChannelRequest
+from telethon.tl.functions.messages import GetFullChatRequest, ExportChatInviteRequest
 from telethon.tl.types import (
     ChannelParticipantAdmin, ChannelParticipantCreator,
-    InputPeerUser, PeerChannel, PeerChat
+    InputPeerUser, PeerChannel, PeerChat,
+    ChatInviteExported
 )
 
 # ══════════════════════════════════════════════
