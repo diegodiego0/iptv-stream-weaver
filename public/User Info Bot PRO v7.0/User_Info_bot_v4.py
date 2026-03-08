@@ -96,27 +96,134 @@ def log(msg: str):
 # 📋  CONFIGURAÇÃO DINÂMICA (Tópicos, Boas-vindas)
 # ══════════════════════════════════════════════
 
+_config_cache = None
+_config_cache_time = 0
+_CONFIG_CACHE_TTL = 5  # Segundos de cache para resposta rápida
+
 def carregar_config() -> dict:
-    """Carrega configurações dinâmicas do bot."""
+    """Carrega configurações dinâmicas do bot com cache em memória."""
+    global _config_cache, _config_cache_time
+    agora = time.time()
+    if _config_cache is not None and (agora - _config_cache_time) < _CONFIG_CACHE_TTL:
+        return _config_cache
     if os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                _config_cache = json.load(f)
+                _config_cache_time = agora
+                return _config_cache
         except (json.JSONDecodeError, IOError):
             pass
-    return {
-        "topicos": {},           # {chat_id: topic_id} — tópico onde o bot responde
-        "boas_vindas": {},       # {chat_id: "mensagem"} — saudação customizada
-        "usuarios_banidos": {},  # {user_id: {"ate": timestamp, "avisos": N}}
-        "abuse_log": {}          # {user_id: [timestamps]}
+    _config_cache = {
+        "topicos": {},
+        "boas_vindas": {},
+        "usuarios_banidos": {},
+        "abuse_log": {}
     }
+    _config_cache_time = agora
+    return _config_cache
 
 def salvar_config(cfg: dict):
+    global _config_cache, _config_cache_time
     try:
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             json.dump(cfg, f, indent=2, ensure_ascii=False)
+        _config_cache = cfg
+        _config_cache_time = time.time()
     except IOError as e:
         log(f"❌ Erro ao salvar config: {e}")
+
+
+# ══════════════════════════════════════════════
+# 📂  REGISTRO DE GRUPOS DO BOT
+# ══════════════════════════════════════════════
+
+def carregar_grupos_bot() -> dict:
+    """Carrega o arquivo de grupos onde o bot foi adicionado."""
+    if os.path.exists(GROUPS_FILE_PATH):
+        try:
+            with open(GROUPS_FILE_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {}
+
+def salvar_grupos_bot(data: dict):
+    try:
+        with open(GROUPS_FILE_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except IOError as e:
+        log(f"❌ Erro ao salvar grupos_bot: {e}")
+
+async def registrar_grupo_bot(chat, adicionado_por=None):
+    """Registra informações do grupo onde o bot foi adicionado."""
+    try:
+        grupos = carregar_grupos_bot()
+        chat_id = str(chat.id)
+        title = getattr(chat, 'title', 'Grupo desconhecido')
+        username = getattr(chat, 'username', None)
+        
+        # Tenta obter link de acesso
+        link = None
+        if username:
+            link = f"https://t.me/{username}"
+        else:
+            try:
+                result = await bot(ExportChatInviteRequest(chat))
+                if isinstance(result, ChatInviteExported):
+                    link = result.link
+            except Exception:
+                pass
+
+        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        
+        if chat_id not in grupos:
+            grupos[chat_id] = {
+                "id": chat.id,
+                "nome": title,
+                "username": f"@{username}" if username else "Nenhum",
+                "link": link or "Não disponível",
+                "adicionado_em": agora,
+                "adicionado_por": adicionado_por,
+                "membros": getattr(chat, 'participants_count', None),
+                "ativo": True
+            }
+            salvar_grupos_bot(grupos)
+            log(f"📂 Novo grupo registrado: {title} ({chat_id})")
+            
+            # Notifica o dono
+            por_txt = f"\n👤 **Adicionado por:** `{adicionado_por}`" if adicionado_por else ""
+            await notificar(
+                f"📂 **BOT ADICIONADO A GRUPO**\n\n"
+                f"╔══════════════════════════╗\n"
+                f"║  📋 **{title}**\n"
+                f"╚══════════════════════════╝\n\n"
+                f"🔢 **ID:** `{chat.id}`\n"
+                f"🆔 **Username:** `{'@' + username if username else 'Nenhum'}`\n"
+                f"🔗 **Link:** `{link or 'Não disponível'}`\n"
+                f"👥 **Membros:** {getattr(chat, 'participants_count', '?')}"
+                f"{por_txt}\n"
+                f"🕐 **Data:** `{agora}`"
+            )
+        else:
+            # Atualiza info
+            grupos[chat_id]["nome"] = title
+            grupos[chat_id]["username"] = f"@{username}" if username else "Nenhum"
+            if link:
+                grupos[chat_id]["link"] = link
+            grupos[chat_id]["ativo"] = True
+            salvar_grupos_bot(grupos)
+    except Exception as e:
+        log(f"⚠️ Erro ao registrar grupo: {e}")
+
+
+async def is_group_owner(chat_id, user_id) -> bool:
+    """Verifica se o user_id é o criador/dono do grupo."""
+    try:
+        participant = await bot(GetParticipantRequest(chat_id, user_id))
+        return isinstance(participant.participant, ChannelParticipantCreator)
+    except Exception:
+        return False
 
 # ══════════════════════════════════════════════
 # 🤖  CLIENTES TELETHON
