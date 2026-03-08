@@ -2186,7 +2186,7 @@ async def text_handler(event):
             "💡 Use o menu para navegar ou `/buscar termo` para buscar.\n"
             f"💡 Ou use `@{BOT_USERNAME} termo` em qualquer chat!",
             parse_mode='md',
-            buttons=menu_principal_buttons(event.chat_id)
+            buttons=menu_principal_buttons(sender_id)
         )
     scan_paused = False
 
