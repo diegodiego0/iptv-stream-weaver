@@ -6,10 +6,12 @@ from datetime import datetime
 from telethon import TelegramClient, events, Button
 from telethon.errors import FloodWaitError, UserNotParticipantError
 from telethon.tl.functions.users import GetFullUserRequest
-from telethon.tl.functions.channels import GetParticipantRequest
+from telethon.tl.functions.channels import GetParticipantRequest, GetFullChannelRequest
+from telethon.tl.functions.messages import GetFullChatRequest, ExportChatInviteRequest
 from telethon.tl.types import (
     ChannelParticipantAdmin, ChannelParticipantCreator,
-    InputPeerUser, PeerChannel, PeerChat
+    InputPeerUser, PeerChannel, PeerChat,
+    ChatInviteExported
 )
 
 # ══════════════════════════════════════════════
@@ -26,6 +28,7 @@ FOLDER_PATH = "data"
 FILE_PATH = os.path.join(FOLDER_PATH, "user_database.json")
 LOG_PATH = os.path.join(FOLDER_PATH, "monitor.log")
 CONFIG_PATH = os.path.join(FOLDER_PATH, "bot_config.json")
+GROUPS_FILE_PATH = os.path.join(FOLDER_PATH, "groups_bot.json")
 SESSION_USER = "session_monitor"
 SESSION_BOT = "session_bot"
 
@@ -93,27 +96,134 @@ def log(msg: str):
 # 📋  CONFIGURAÇÃO DINÂMICA (Tópicos, Boas-vindas)
 # ══════════════════════════════════════════════
 
+_config_cache = None
+_config_cache_time = 0
+_CONFIG_CACHE_TTL = 5  # Segundos de cache para resposta rápida
+
 def carregar_config() -> dict:
-    """Carrega configurações dinâmicas do bot."""
+    """Carrega configurações dinâmicas do bot com cache em memória."""
+    global _config_cache, _config_cache_time
+    agora = time.time()
+    if _config_cache is not None and (agora - _config_cache_time) < _CONFIG_CACHE_TTL:
+        return _config_cache
     if os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                _config_cache = json.load(f)
+                _config_cache_time = agora
+                return _config_cache
         except (json.JSONDecodeError, IOError):
             pass
-    return {
-        "topicos": {},           # {chat_id: topic_id} — tópico onde o bot responde
-        "boas_vindas": {},       # {chat_id: "mensagem"} — saudação customizada
-        "usuarios_banidos": {},  # {user_id: {"ate": timestamp, "avisos": N}}
-        "abuse_log": {}          # {user_id: [timestamps]}
+    _config_cache = {
+        "topicos": {},
+        "boas_vindas": {},
+        "usuarios_banidos": {},
+        "abuse_log": {}
     }
+    _config_cache_time = agora
+    return _config_cache
 
 def salvar_config(cfg: dict):
+    global _config_cache, _config_cache_time
     try:
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             json.dump(cfg, f, indent=2, ensure_ascii=False)
+        _config_cache = cfg
+        _config_cache_time = time.time()
     except IOError as e:
         log(f"❌ Erro ao salvar config: {e}")
+
+
+# ══════════════════════════════════════════════
+# 📂  REGISTRO DE GRUPOS DO BOT
+# ══════════════════════════════════════════════
+
+def carregar_grupos_bot() -> dict:
+    """Carrega o arquivo de grupos onde o bot foi adicionado."""
+    if os.path.exists(GROUPS_FILE_PATH):
+        try:
+            with open(GROUPS_FILE_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {}
+
+def salvar_grupos_bot(data: dict):
+    try:
+        with open(GROUPS_FILE_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except IOError as e:
+        log(f"❌ Erro ao salvar grupos_bot: {e}")
+
+async def registrar_grupo_bot(chat, adicionado_por=None):
+    """Registra informações do grupo onde o bot foi adicionado."""
+    try:
+        grupos = carregar_grupos_bot()
+        chat_id = str(chat.id)
+        title = getattr(chat, 'title', 'Grupo desconhecido')
+        username = getattr(chat, 'username', None)
+        
+        # Tenta obter link de acesso
+        link = None
+        if username:
+            link = f"https://t.me/{username}"
+        else:
+            try:
+                result = await bot(ExportChatInviteRequest(chat))
+                if isinstance(result, ChatInviteExported):
+                    link = result.link
+            except Exception:
+                pass
+
+        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        
+        if chat_id not in grupos:
+            grupos[chat_id] = {
+                "id": chat.id,
+                "nome": title,
+                "username": f"@{username}" if username else "Nenhum",
+                "link": link or "Não disponível",
+                "adicionado_em": agora,
+                "adicionado_por": adicionado_por,
+                "membros": getattr(chat, 'participants_count', None),
+                "ativo": True
+            }
+            salvar_grupos_bot(grupos)
+            log(f"📂 Novo grupo registrado: {title} ({chat_id})")
+            
+            # Notifica o dono
+            por_txt = f"\n👤 **Adicionado por:** `{adicionado_por}`" if adicionado_por else ""
+            await notificar(
+                f"📂 **BOT ADICIONADO A GRUPO**\n\n"
+                f"╔══════════════════════════╗\n"
+                f"║  📋 **{title}**\n"
+                f"╚══════════════════════════╝\n\n"
+                f"🔢 **ID:** `{chat.id}`\n"
+                f"🆔 **Username:** `{'@' + username if username else 'Nenhum'}`\n"
+                f"🔗 **Link:** `{link or 'Não disponível'}`\n"
+                f"👥 **Membros:** {getattr(chat, 'participants_count', '?')}"
+                f"{por_txt}\n"
+                f"🕐 **Data:** `{agora}`"
+            )
+        else:
+            # Atualiza info
+            grupos[chat_id]["nome"] = title
+            grupos[chat_id]["username"] = f"@{username}" if username else "Nenhum"
+            if link:
+                grupos[chat_id]["link"] = link
+            grupos[chat_id]["ativo"] = True
+            salvar_grupos_bot(grupos)
+    except Exception as e:
+        log(f"⚠️ Erro ao registrar grupo: {e}")
+
+
+async def is_group_owner(chat_id, user_id) -> bool:
+    """Verifica se o user_id é o criador/dono do grupo."""
+    try:
+        participant = await bot(GetParticipantRequest(chat_id, user_id))
+        return isinstance(participant.participant, ChannelParticipantCreator)
+    except Exception:
+        return False
 
 # ══════════════════════════════════════════════
 # 🤖  CLIENTES TELETHON
@@ -511,7 +621,8 @@ def menu_principal_buttons(user_id: int = 0):
              Button.inline("👋 Boas-Vindas", b"cmd_set_welcome")]
         )
         btns.append(
-            [Button.inline("🛡️ Controle de Abuso", b"cmd_abuse_panel")]
+            [Button.inline("🛡️ Controle de Abuso", b"cmd_abuse_panel"),
+             Button.inline("📂 Grupos do Bot", b"cmd_grupos_bot")]
         )
     else:
         btns.append(
@@ -934,6 +1045,44 @@ async def cmd_unset_topic(event):
 
 
 # ══════════════════════════════════════════════
+# 📂  COMANDO: Listar Grupos do Bot (Admin)
+# ══════════════════════════════════════════════
+
+@bot.on(events.NewMessage(pattern='/gruposbot'))
+async def cmd_grupos_bot(event):
+    """Lista todos os grupos onde o bot foi adicionado."""
+    await registrar_interacao(event)
+    if not is_admin(event.sender_id):
+        await responder_evento(event, "🔒 Apenas o administrador pode ver os grupos do bot.")
+        return
+
+    grupos = carregar_grupos_bot()
+    if not grupos:
+        await responder_evento(event, "📂 O bot ainda não foi adicionado a nenhum grupo.", buttons=voltar_button())
+        return
+
+    ativos = {k: v for k, v in grupos.items() if v.get("ativo", True)}
+    inativos = {k: v for k, v in grupos.items() if not v.get("ativo", True)}
+
+    text = f"📂 **GRUPOS DO BOT** — {len(ativos)} ativos, {len(inativos)} removidos\n\n"
+    
+    for gid, info in list(ativos.items())[:15]:
+        text += f"✅ **{info['nome']}**\n"
+        text += f"   🔢 ID: `{info['id']}`\n"
+        text += f"   🆔 Username: `{info['username']}`\n"
+        text += f"   🔗 Link: `{info['link']}`\n"
+        text += f"   📅 Desde: `{info.get('adicionado_em', 'N/A')}`\n\n"
+
+    if inativos:
+        text += f"\n🚫 **Removidos ({len(inativos)}):**\n"
+        for gid, info in list(inativos.items())[:5]:
+            text += f"   ❌ {info['nome']} — removido em `{info.get('removido_em', '?')}`\n"
+
+    text += f"\n_Total: {len(grupos)} grupos registrados_\n_Créditos: @Edkd1_"
+    await responder_evento(event, text, buttons=voltar_button())
+
+
+# ══════════════════════════════════════════════
 # 👋  COMANDO: Boas-Vindas Customizáveis
 # ══════════════════════════════════════════════
 
@@ -987,74 +1136,130 @@ async def cmd_unset_welcome(event):
 
 
 # ══════════════════════════════════════════════
-# 👋  HANDLER: Novos Membros (Saudação)
+# 👋  HANDLER: Novos Membros + Bot Adicionado
 # ══════════════════════════════════════════════
 
 @bot.on(events.ChatAction)
 async def welcome_handler(event):
-    """Saúda novos membros com mensagem customizável."""
-    if not event.user_joined and not event.user_added:
-        return
-
+    """Saúda novos membros e registra quando o bot é adicionado a um grupo."""
     try:
-        user = await event.get_user()
-        if not user or user.bot:
-            return
-
         chat = await event.get_chat()
         chat_id = str(event.chat_id)
-        nome = user.first_name or "Novo membro"
-        mention = f"[{nome}](tg://user?id={user.id})"
-        grupo_nome = getattr(chat, 'title', 'Grupo')
 
-        # Registra o usuário no banco
-        uid = str(user.id)
-        db = carregar_dados()
-        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        if uid not in db:
-            username = f"@{user.username}" if user.username else "Nenhum"
-            db[uid] = {
-                "id": user.id,
-                "nome_atual": f"{user.first_name or ''} {user.last_name or ''}".strip() or "Sem nome",
-                "username_atual": username,
-                "grupos": [grupo_nome],
-                "primeiro_registro": agora,
-                "historico": [],
-                "origem": "entrada_grupo"
-            }
-            if hasattr(user, 'phone') and user.phone:
-                db[uid]["telefone"] = user.phone
-            salvar_dados(db)
-        else:
-            if "grupos" not in db[uid]:
-                db[uid]["grupos"] = []
-            if grupo_nome not in db[uid]["grupos"]:
-                db[uid]["grupos"].append(grupo_nome)
+        # ── Detecta se O BOT foi adicionado ao grupo ──
+        if event.user_added or event.user_joined:
+            user = await event.get_user()
+            if not user:
+                return
+
+            me = await bot.get_me()
+            if user.id == me.id:
+                # Bot foi adicionado! Registra o grupo
+                adicionado_por_info = None
+                if event.user_added:
+                    try:
+                        adder = await event.get_added_by()
+                        if adder:
+                            adicionado_por_info = f"{adder.first_name or ''} ({adder.id})"
+                    except Exception:
+                        pass
+                await registrar_grupo_bot(chat, adicionado_por=adicionado_por_info)
+                
+                # Mensagem de apresentação no chat principal
+                grupo_nome = getattr(chat, 'title', 'Grupo')
+                await bot.send_message(
+                    event.chat_id,
+                    f"👋 **Olá, {grupo_nome}!**\n\n"
+                    f"Sou o **User Info Bot Pro v7.0** 🕵️\n\n"
+                    f"📋 **O que eu faço:**\n"
+                    f"• 👋 Saúdo novos membros automaticamente\n"
+                    f"• 🔍 Busco informações de usuários\n"
+                    f"• 📊 Monitoro alterações de perfil\n\n"
+                    f"⚙️ **Para o dono do grupo:**\n"
+                    f"• `/setwelcome Sua mensagem` — Personalizar boas-vindas\n"
+                    f"• `/unsetwelcome` — Restaurar padrão\n"
+                    f"• `/regras` — Exibir regras do grupo\n\n"
+                    f"💡 Variáveis: `{{mention}}`, `{{nome}}`, `{{grupo}}`, `{{id}}`\n\n"
+                    f"_Créditos: @Edkd1_",
+                    parse_mode='md'
+                )
+                return
+
+            # ── Usuário normal entrou — saudação ──
+            if user.bot:
+                return
+
+            grupo_nome = getattr(chat, 'title', 'Grupo')
+            nome = user.first_name or "Novo membro"
+            mention = f"[{nome}](tg://user?id={user.id})"
+
+            # Registra o usuário no banco
+            uid = str(user.id)
+            db = carregar_dados()
+            agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            if uid not in db:
+                username = f"@{user.username}" if user.username else "Nenhum"
+                db[uid] = {
+                    "id": user.id,
+                    "nome_atual": f"{user.first_name or ''} {user.last_name or ''}".strip() or "Sem nome",
+                    "username_atual": username,
+                    "grupos": [grupo_nome],
+                    "primeiro_registro": agora,
+                    "historico": [],
+                    "origem": "entrada_grupo"
+                }
+                if hasattr(user, 'phone') and user.phone:
+                    db[uid]["telefone"] = user.phone
                 salvar_dados(db)
+            else:
+                if "grupos" not in db[uid]:
+                    db[uid]["grupos"] = []
+                if grupo_nome not in db[uid]["grupos"]:
+                    db[uid]["grupos"].append(grupo_nome)
+                    salvar_dados(db)
 
-        # Mensagem de boas-vindas
-        cfg = carregar_config()
-        msg_template = cfg.get("boas_vindas", {}).get(chat_id)
+            # Registra o grupo também
+            await registrar_grupo_bot(chat)
 
-        if msg_template:
-            msg = msg_template.format(
-                mention=mention,
-                nome=nome,
-                grupo=grupo_nome,
-                id=user.id
-            )
-        else:
-            msg = (
-                f"👋 Bem-vindo(a), {mention}!\n\n"
-                f"Seja bem-vindo(a) ao **{grupo_nome}**! 🎉\n"
-                f"Use `/regras` para ver as regras do grupo."
-            )
+            # Mensagem de boas-vindas — SEMPRE no chat principal (sem reply_to tópico)
+            cfg = carregar_config()
+            msg_template = cfg.get("boas_vindas", {}).get(chat_id)
 
-        reply_kwargs = get_reply_to(event)
-        await bot.send_message(event.chat_id, msg, parse_mode='md', **reply_kwargs)
+            if msg_template:
+                try:
+                    msg = msg_template.format(
+                        mention=mention,
+                        nome=nome,
+                        grupo=grupo_nome,
+                        id=user.id
+                    )
+                except (KeyError, IndexError):
+                    msg = msg_template  # Se template inválido, envia como está
+            else:
+                msg = (
+                    f"👋 {mention} seja bem-vindo(a) ao **{grupo_nome}**! 🎉\n"
+                    f"Use `/regras` para ver as regras do grupo."
+                )
+
+            # Envia NO CHAT PRINCIPAL (sem reply_to para não ir em tópico)
+            await bot.send_message(event.chat_id, msg, parse_mode='md')
+
+        # ── Detecta se o bot foi removido do grupo ──
+        elif event.user_left or event.user_kicked:
+            user = await event.get_user()
+            if user:
+                me = await bot.get_me()
+                if user.id == me.id:
+                    grupos = carregar_grupos_bot()
+                    if chat_id in grupos:
+                        grupos[chat_id]["ativo"] = False
+                        grupos[chat_id]["removido_em"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                        salvar_grupos_bot(grupos)
+                    grupo_nome = getattr(chat, 'title', 'Grupo')
+                    await notificar(f"🚫 **Bot removido do grupo:** {grupo_nome} (`{chat_id}`)")
 
     except Exception as e:
-        log(f"⚠️ Erro no welcome: {e}")
+        log(f"⚠️ Erro no welcome/group handler: {e}")
 
 
 # ══════════════════════════════════════════════
@@ -1533,6 +1738,25 @@ Use os comandos **dentro do grupo**:
                 buttons=voltar_button()
             )
 
+        # ── Grupos do Bot (via botão) ──
+        elif data == "cmd_grupos_bot":
+            if not is_admin(sender_id):
+                await event.answer("🔒 Apenas o administrador.", alert=True)
+                scan_paused = False
+                return
+            grupos = carregar_grupos_bot()
+            if not grupos:
+                await message.edit("📂 O bot ainda não foi adicionado a nenhum grupo.", parse_mode='md', buttons=voltar_button())
+            else:
+                ativos = {k: v for k, v in grupos.items() if v.get("ativo", True)}
+                text = f"📂 **GRUPOS DO BOT** — {len(ativos)} ativos\n\n"
+                for gid, info in list(ativos.items())[:10]:
+                    text += f"✅ **{info['nome']}**\n"
+                    text += f"   🔢 `{info['id']}` | 🆔 `{info['username']}`\n"
+                    text += f"   🔗 `{info['link']}`\n\n"
+                text += f"_Total: {len(grupos)} grupos_\n_Use /gruposbot para detalhes_"
+                await message.edit(text, parse_mode='md', buttons=voltar_button())
+
         # ── Painel de Abuso ──
         elif data == "cmd_abuse_panel":
             if not is_admin(sender_id):
@@ -1677,15 +1901,18 @@ _Monitor profissional de usuários_
 • 🔒 Pausa durante interações
 • 🆕 Auto-criação do banco
 • 📌 Suporte a Tópicos (forum threads)
-• 👋 Boas-vindas customizáveis
+• 👋 Boas-vindas no chat principal (personalizáveis)
 • 📜 Regras do grupo (/regras)
 • 🛡️ Controle de abuso (rate limit + ban)
 • 📱 Captura de telefone
 • 🔍 Busca via @{BOT_USERNAME} + termo
+• 📂 Registro automático de grupos (/gruposbot)
+• 🚪 Detecta entrada/saída do bot em grupos
+• ⚡ Cache em memória para respostas rápidas
 
 **Tecnologia:**
-• ⚡ Telethon (asyncio)
-• 💾 Banco JSON local
+• ⚡ Telethon (asyncio) + Cache inteligente
+• 💾 Banco JSON local + groups_bot.json
 • 🛡️ Anti-flood + Anti-abuso
 • 🔄 Lock de operações
 • 📡 API Telegram fallback
