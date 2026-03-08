@@ -2105,18 +2105,25 @@ async def text_handler(event):
         scan_paused = False
         return
 
-    if chat_id in search_pending:
-        mode = search_pending.pop(chat_id)
+    sender_id = event.sender_id
+
+    if sender_id in search_pending:
+        mode = search_pending.pop(sender_id)
         query = event.text.strip()
+
+        # Indica que está buscando
+        typing_id = iniciar_digitando(event.chat_id, sender_id)
+
         results = buscar_usuario(query)
 
         if not results:
             # Fallback: API do Telegram
-            await event.reply(f"🔍 Buscando `{query}` via API...\n⏳ _Aguarde..._", parse_mode='md')
+            await event.reply(f"🔍 Buscando `{query}` via API...\n⏳ _Aguarde, a consulta pode demorar alguns segundos..._", parse_mode='md')
             api_result = await consultar_api_telegram(query, event)
             if api_result:
                 results = [api_result]
             else:
+                parar_digitando(typing_id)
                 await event.reply(
                     f"❌ **Nenhum resultado para** `{query}`\n\n💡 Tente outro termo.",
                     parse_mode='md',
@@ -2124,6 +2131,8 @@ async def text_handler(event):
                 )
                 scan_paused = False
                 return
+
+        parar_digitando(typing_id)
 
         # Se é busca de grupos
         if mode == "grupos":
@@ -2161,9 +2170,9 @@ async def text_handler(event):
                     [Button.inline("🔙 Menu Principal", b"cmd_menu")]
                 ])
             else:
-                # Salva resultados para paginação
-                last_search_results[chat_id] = {"query": query, "results": results}
-                await mostrar_resultados_busca(event, query, results, 0)
+                # Salva resultados para paginação por sender_id
+                last_search_results[sender_id] = {"query": query, "results": results}
+                await mostrar_resultados_busca(event, query, results, 0, sender_id)
     else:
         await event.reply(
             "💡 Use o menu para navegar ou `/buscar termo` para buscar.\n"
