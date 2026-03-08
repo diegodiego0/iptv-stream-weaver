@@ -1290,6 +1290,74 @@ async def welcome_handler(event):
 
 
 # ══════════════════════════════════════════════
+# 🚫  HANDLER: Detecta outros bots no tópico configurado
+# ══════════════════════════════════════════════
+
+@bot.on(events.NewMessage(func=lambda e: not e.is_private))
+async def detect_other_bots_in_topic(event):
+    """
+    Detecta quando outro bot responde no tópico configurado.
+    Apaga a mensagem e avisa o bot intruso.
+    """
+    try:
+        # Verifica se o remetente é um bot
+        sender = await event.get_sender()
+        if not sender or not getattr(sender, 'bot', False):
+            return  # Não é um bot, ignora
+        
+        # Verifica se não somos nós mesmos
+        me = await bot.get_me()
+        if sender.id == me.id:
+            return
+        
+        chat_id = str(event.chat_id)
+        cfg = carregar_config()
+        topico_configurado = cfg.get("topicos", {}).get(chat_id)
+        
+        if not topico_configurado:
+            return  # Sem tópico configurado neste grupo
+        
+        # Verifica se a mensagem está no tópico configurado
+        mensagem_topic_id = None
+        if hasattr(event, 'reply_to') and event.reply_to:
+            mensagem_topic_id = getattr(event.reply_to, 'reply_to_top_id', None) or getattr(event.reply_to, 'reply_to_msg_id', None)
+        
+        if mensagem_topic_id == topico_configurado:
+            # Outro bot postou no NOSSO tópico! Apaga e avisa
+            try:
+                # Tenta apagar a mensagem do bot intruso
+                await event.delete()
+                log(f"🚫 Mensagem de bot @{sender.username or sender.id} apagada no tópico {topico_configurado}")
+                
+                # Envia aviso no mesmo tópico
+                aviso = (
+                    f"🚫 **Ei @{sender.username or 'bot safado'}!**\n\n"
+                    f"Aqui não, bot safado! 👎\n"
+                    f"Vai procurar outro tópico pra você que esse já tem dono que sou eu! 😤\n"
+                    f"Pega o beco! 🏃‍♂️💨"
+                )
+                await bot.send_message(
+                    event.chat_id,
+                    aviso,
+                    parse_mode='md',
+                    reply_to=topico_configurado
+                )
+                
+            except Exception as e:
+                # Se não conseguiu apagar (sem permissão), apenas avisa
+                log(f"⚠️ Não foi possível apagar mensagem de bot: {e}")
+                await bot.send_message(
+                    event.chat_id,
+                    f"🚫 Ei @{sender.username or 'bot safado'}! Aqui não, bot safado! 👎\n"
+                    f"Esse tópico já tem dono que sou eu — pega o beco! 🏃‍♂️💨",
+                    parse_mode='md',
+                    reply_to=topico_configurado
+                )
+    except Exception as e:
+        log(f"⚠️ Erro ao detectar bot intruso: {e}")
+
+
+# ══════════════════════════════════════════════
 # 📜  COMANDO: Regras do Grupo
 # ══════════════════════════════════════════════
 
