@@ -362,10 +362,12 @@ async def consultar_api_telegram(query: str, event=None) -> dict | None:
     Salva resultado no banco para consultas futuras.
     """
     try:
-        # Mantém status digitando
+        # Mantém status digitando (cancelável)
+        typing_task_id = None
         if event:
             chat_id = event.chat_id
-            asyncio.create_task(_manter_digitando(chat_id, event))
+            sender_id = getattr(event, 'sender_id', 0)
+            typing_task_id = iniciar_digitando(chat_id, sender_id)
 
         entity = None
         # Tenta por ID numérico
@@ -430,21 +432,46 @@ async def consultar_api_telegram(query: str, event=None) -> dict | None:
                 db[uid]["telefone"] = phone
             salvar_dados(db)
 
+        if typing_task_id:
+            parar_digitando(typing_task_id)
         return db[uid]
 
     except Exception as e:
         log(f"⚠️ Erro na consulta API: {e}")
+        if typing_task_id:
+            parar_digitando(typing_task_id)
         return None
 
 
-async def _manter_digitando(chat_id: int, event):
-    """Mantém o status 'digitando' enquanto a consulta está em andamento."""
+_typing_tasks = {}  # chat_id -> asyncio.Task para cancelar digitando
+
+async def _manter_digitando(chat_id: int, task_id: str):
+    """Mantém o status 'digitando' enquanto a consulta está em andamento. Cancelável."""
     try:
-        for _ in range(30):  # Máximo 30 segundos
+        for _ in range(30):
             async with bot.action(chat_id, 'typing'):
                 await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        pass
     except Exception:
         pass
+    finally:
+        _typing_tasks.pop(task_id, None)
+
+
+def iniciar_digitando(chat_id: int, sender_id: int):
+    """Inicia indicador de digitando e retorna o task_id para cancelar depois."""
+    task_id = f"{chat_id}_{sender_id}_{time.time()}"
+    task = asyncio.create_task(_manter_digitando(chat_id, task_id))
+    _typing_tasks[task_id] = task
+    return task_id
+
+
+def parar_digitando(task_id: str):
+    """Cancela o indicador de digitando."""
+    task = _typing_tasks.pop(task_id, None)
+    if task and not task.done():
+        task.cancel()
 
 
 # ══════════════════════════════════════════════
@@ -1422,7 +1449,7 @@ async def cmd_buscar_text(event):
     scan_paused = False
 
 
-async def mostrar_resultados_busca(event_or_msg, query, results, page):
+async def mostrar_resultados_busca(event_or_msg, query, results, page, sender_id=0):
     """Mostra resultados de busca com paginação de 10 itens."""
     total = len(results)
     total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
@@ -1452,12 +1479,38 @@ async def mostrar_resultados_busca(event_or_msg, query, results, page):
         await event_or_msg.edit(text, parse_mode='md', buttons=btns)
 
 
+async def mostrar_resultados_busca_edit(message, query, results, page, sender_id=0):
+    """Edita mensagem com resultados de busca paginados."""
+    total = len(results)
+    total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+    page = min(page, total_pages - 1)
+    start = page * ITEMS_PER_PAGE
+    chunk = results[start:start + ITEMS_PER_PAGE]
+
+    text = f"🔍 **{total} resultados para** `{query}` (pág. {page + 1}/{total_pages}):\n\n"
+    btns = []
+    for r in chunk:
+        label = f"👤 {r['nome_atual']} | {r['username_atual']}"
+        btns.append([Button.inline(label[:40], f"profile_{r['id']}".encode())])
+
+    nav = []
+    if page > 0:
+        nav.append(Button.inline("◀️ Anterior", f"search_{page - 1}".encode()))
+    if page < total_pages - 1:
+        nav.append(Button.inline("Próxima ▶️", f"search_{page + 1}".encode()))
+    if nav:
+        btns.append(nav)
+    btns.append([Button.inline("🔙 Menu Principal", b"cmd_menu")])
+
+    await message.edit(text, parse_mode='md', buttons=btns)
+
+
 # ══════════════════════════════════════════════
 # 🔘  HANDLERS DE CALLBACK (BOTÕES INLINE)
 # ══════════════════════════════════════════════
 
-search_pending = {}
-last_search_results = {}  # Cache dos resultados de busca para paginação
+search_pending = {}        # sender_id -> mode (True ou "grupos")
+last_search_results = {}   # sender_id -> {"query": ..., "results": ...}
 
 @bot.on(events.CallbackQuery)
 async def callback_handler(event):
@@ -1486,7 +1539,7 @@ Selecione uma opção:""",
 
         # ── Buscar ──
         elif data == "cmd_buscar":
-            search_pending[chat_id] = True
+            search_pending[sender_id] = True
             await message.edit(
                 """🔍 **Modo de Busca Ativo**
 
@@ -1674,7 +1727,7 @@ _Créditos: @Edkd1_""",
 
         # ── Grupos do Usuário (buscar) ──
         elif data == "cmd_grupos":
-            search_pending[chat_id] = "grupos"
+            search_pending[sender_id] = "grupos"
             await message.edit(
                 """📂 **Buscar Grupos de um Usuário**
 
@@ -2013,6 +2066,15 @@ _Monitor profissional de usuários_
         elif data == "noop":
             await event.answer()
 
+        # ── Paginação de busca ──
+        elif data.startswith("search_"):
+            page = int(data.replace("search_", ""))
+            cached = last_search_results.get(sender_id)
+            if cached:
+                await mostrar_resultados_busca_edit(message, cached["query"], cached["results"], page, sender_id)
+            else:
+                await event.answer("⚠️ Busca expirada. Faça uma nova busca.", alert=True)
+
         else:
             await event.answer("⚠️ Ação não reconhecida.")
 
@@ -2051,18 +2113,25 @@ async def text_handler(event):
         scan_paused = False
         return
 
-    if chat_id in search_pending:
-        mode = search_pending.pop(chat_id)
+    sender_id = event.sender_id
+
+    if sender_id in search_pending:
+        mode = search_pending.pop(sender_id)
         query = event.text.strip()
+
+        # Indica que está buscando
+        typing_id = iniciar_digitando(event.chat_id, sender_id)
+
         results = buscar_usuario(query)
 
         if not results:
             # Fallback: API do Telegram
-            await event.reply(f"🔍 Buscando `{query}` via API...\n⏳ _Aguarde..._", parse_mode='md')
+            await event.reply(f"🔍 Buscando `{query}` via API...\n⏳ _Aguarde, a consulta pode demorar alguns segundos..._", parse_mode='md')
             api_result = await consultar_api_telegram(query, event)
             if api_result:
                 results = [api_result]
             else:
+                parar_digitando(typing_id)
                 await event.reply(
                     f"❌ **Nenhum resultado para** `{query}`\n\n💡 Tente outro termo.",
                     parse_mode='md',
@@ -2070,6 +2139,8 @@ async def text_handler(event):
                 )
                 scan_paused = False
                 return
+
+        parar_digitando(typing_id)
 
         # Se é busca de grupos
         if mode == "grupos":
@@ -2107,15 +2178,15 @@ async def text_handler(event):
                     [Button.inline("🔙 Menu Principal", b"cmd_menu")]
                 ])
             else:
-                # Salva resultados para paginação
-                last_search_results[chat_id] = {"query": query, "results": results}
-                await mostrar_resultados_busca(event, query, results, 0)
+                # Salva resultados para paginação por sender_id
+                last_search_results[sender_id] = {"query": query, "results": results}
+                await mostrar_resultados_busca(event, query, results, 0, sender_id)
     else:
         await event.reply(
             "💡 Use o menu para navegar ou `/buscar termo` para buscar.\n"
             f"💡 Ou use `@{BOT_USERNAME} termo` em qualquer chat!",
             parse_mode='md',
-            buttons=menu_principal_buttons(event.chat_id)
+            buttons=menu_principal_buttons(sender_id)
         )
     scan_paused = False
 
