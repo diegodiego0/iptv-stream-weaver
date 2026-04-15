@@ -1753,33 +1753,87 @@ async def _dl_task_dz(uid: int, modo: str, pending: dict, card_msg):
 
 
 # ═══════════════════════════════════════════════════════════════
-# EXPLORAR — Seções do Deezer (Chart, Lançamentos, Editorial)
+# EXPLORAR — 4 seções curadas com preview + Visualizar tudo
 # ═══════════════════════════════════════════════════════════════
 
-EXPLORE_SECTIONS = [
-    ("🔥 Top Músicas",    "exp:tracks"),
-    ("💿 Top Álbuns",     "exp:albums"),
-    ("👤 Top Artistas",   "exp:artists"),
-    ("📋 Top Playlists",  "exp:playlists"),
-    ("🆕 Lançamentos",    "exp:releases"),
-    ("📻 Rádios",         "exp:radios"),
-    ("📰 Editorial",      "exp:editorial"),
-]
-
+EXPLORE_PREVIEW = 3          # itens de preview por seção no menu
 EXPLORE_PAGE_SIZE = 8
+
 _explore_cache: dict[str, tuple[float, list]] = {}
 
+_EXPLORE_SECTIONS = [
+    {
+        "key":      "releases",
+        "label":    "🆕 Últimos Lançamentos da Semana",
+        "emoji":    "🆕",
+        "endpoint": "editorial/0/releases",
+        "tipo":     "album",
+        "titulo":   "🆕 **Últimos Lançamentos da Semana**",
+    },
+    {
+        "key":      "destaques",
+        "label":    "🔥 Destaques",
+        "emoji":    "🔥",
+        "endpoint": "chart/0/tracks",
+        "tipo":     "track",
+        "titulo":   "🔥 **Destaques**",
+    },
+    {
+        "key":      "noite",
+        "label":    "🌙 Na Chegada da Noite",
+        "emoji":    "🌙",
+        "endpoint": "chart/0/playlists",
+        "tipo":     "playlist",
+        "titulo":   "🌙 **Na Chegada da Noite**",
+    },
+    {
+        "key":      "tudo",
+        "label":    "🌐 Explorar Tudo",
+        "emoji":    "🌐",
+        "endpoint": "chart/0/albums",
+        "tipo":     "album",
+        "titulo":   "🌐 **Explorar Tudo**",
+    },
+]
 
-def _explore_menu_btns() -> list:
-    """Monta botões do menu Explorar."""
-    rows = []
-    for label, data in EXPLORE_SECTIONS:
-        rows.append([Button.inline(label, data.encode())])
-    rows.append([Button.inline("🏠 Menu", b"mn")])
-    return rows
+_SECTION_BY_KEY = {s["key"]: s for s in _EXPLORE_SECTIONS}
+
+# --- Estado de página Explorar por usuário ---
+_explore_page: dict[int, tuple[str, int]] = {}
 
 
-def _explore_page_btns(section: str, page: int, items: list,
+async def _fetch_section_items(key: str) -> list:
+    """Busca itens de uma seção com cache de 30 min."""
+    now = time.time()
+    if key in _explore_cache:
+        ts, cached = _explore_cache[key]
+        if now - ts < 1800:
+            return cached
+    meta = _SECTION_BY_KEY[key]
+    loop = asyncio.get_event_loop()
+    data = await loop.run_in_executor(
+        _executor, lambda: _api(meta["endpoint"]))
+    items = data.get("data", []) if isinstance(data, dict) else (
+        data if isinstance(data, list) else [])
+    _explore_cache[key] = (now, items)
+    return items
+
+
+def _preview_label(item: dict, tipo: str) -> str:
+    """Label curto para preview no menu Explorar."""
+    n = item.get("title") or item.get("name") or "?"
+    if tipo == "track":
+        a = (item.get("artist") or {}).get("name", "")
+        return f"  🎵 {n[:28]} — {a[:14]}" if a else f"  🎵 {n[:42]}"
+    if tipo == "album":
+        a = (item.get("artist") or {}).get("name", "")
+        return f"  💿 {n[:28]} — {a[:14]}" if a else f"  💿 {n[:42]}"
+    if tipo == "playlist":
+        return f"  📋 {n[:42]}"
+    return f"  {n[:44]}"
+
+
+def _explore_page_btns(key: str, page: int, items: list,
                        tipo: str) -> list:
     """Monta botões paginados para uma seção do Explorar."""
     total_pages = max(1, math.ceil(len(items) / EXPLORE_PAGE_SIZE))
@@ -1793,18 +1847,12 @@ def _explore_page_btns(section: str, page: int, items: list,
         elif tipo == "album":
             name = f"💿 {item.get('title','?')[:30]} — {item.get('artist',{}).get('name','?')[:15]}"
             cb   = f"sel:al:{item['id']}".encode()
-        elif tipo == "artist":
-            name = f"👤 {item.get('name','?')[:40]}"
-            cb   = f"sel:ar:{item['id']}".encode()
         elif tipo == "playlist":
             name = f"📋 {item.get('title','?')[:40]}"
             cb   = f"sel:pl:{item['id']}".encode()
-        elif tipo == "radio":
-            name = f"📻 {item.get('title','?')[:40]}"
-            cb   = f"exprad:{item['id']}".encode()
-        elif tipo == "editorial":
-            name = f"📰 {item.get('title', item.get('name','?'))[:40]}"
-            cb   = f"expedit:{item['id']}".encode()
+        elif tipo == "artist":
+            name = f"👤 {item.get('name','?')[:40]}"
+            cb   = f"sel:ar:{item['id']}".encode()
         else:
             name = f"{item.get('title', item.get('name','?'))[:40]}"
             cb   = b"noop"
@@ -1812,139 +1860,94 @@ def _explore_page_btns(section: str, page: int, items: list,
 
     nav_row = []
     if page > 0:
-        nav_row.append(Button.inline("◀️", f"exppg:{section}:{page-1}".encode()))
+        nav_row.append(Button.inline("◀️", f"exppg:{key}:{page-1}".encode()))
     lbl = f"📄 {page+1}/{total_pages}"
+    if len(items):
+        lbl += f"  ({len(items)})"
     nav_row.append(Button.inline(lbl, b"noop"))
     if page + 1 < total_pages:
-        nav_row.append(Button.inline("▶️", f"exppg:{section}:{page+1}".encode()))
+        nav_row.append(Button.inline("▶️", f"exppg:{key}:{page+1}".encode()))
     rows.append(nav_row)
     rows.append([Button.inline("◀️ Explorar", b"explore"),
                  Button.inline("🏠 Menu", b"mn")])
     return rows
 
 
-async def _get_explore_data(section: str) -> tuple[list, str, str]:
-    """Busca dados de uma seção do Explorar com cache de 30 min."""
-    now = time.time()
-    if section in _explore_cache:
-        ts, cached = _explore_cache[section]
-        if now - ts < 1800:
-            meta = _SECTION_META[section]
-            return cached, meta["tipo"], meta["titulo"]
-
-    meta = _SECTION_META[section]
-    loop = asyncio.get_event_loop()
-    data = await loop.run_in_executor(
-        _executor, lambda: _api(meta["endpoint"]))
-
-    if isinstance(data, dict):
-        items = data.get("data", [])
-    elif isinstance(data, list):
-        items = data
-    else:
-        items = []
-
-    _explore_cache[section] = (now, items)
-    return items, meta["tipo"], meta["titulo"]
-
-
-_SECTION_META = {
-    "tracks": {
-        "endpoint": "chart/0/tracks",
-        "tipo": "track",
-        "titulo": "🔥 **Top Músicas**",
-    },
-    "albums": {
-        "endpoint": "chart/0/albums",
-        "tipo": "album",
-        "titulo": "💿 **Top Álbuns**",
-    },
-    "artists": {
-        "endpoint": "chart/0/artists",
-        "tipo": "artist",
-        "titulo": "👤 **Top Artistas**",
-    },
-    "playlists": {
-        "endpoint": "chart/0/playlists",
-        "tipo": "playlist",
-        "titulo": "📋 **Top Playlists**",
-    },
-    "releases": {
-        "endpoint": "editorial/0/releases",
-        "tipo": "album",
-        "titulo": "🆕 **Lançamentos**",
-    },
-    "radios": {
-        "endpoint": "radio",
-        "tipo": "radio",
-        "titulo": "📻 **Rádios**",
-    },
-    "editorial": {
-        "endpoint": "editorial",
-        "tipo": "editorial",
-        "titulo": "📰 **Editorial**",
-    },
-}
-
-# --- Estado de página Explorar por usuário ---
-_explore_page: dict[int, tuple[str, int]] = {}
-
-
 @bot.on(events.CallbackQuery(data=b"explore"))
 async def h_explore(event):
-    """Exibe o menu Explorar."""
+    """Exibe o menu Explorar com preview de cada seção."""
     if not await _gate(event): return
     await event.answer()
+    uid = event.sender_id
+
+    lines = ["🌐 **Explorar**\n"]
+    rows  = []
+
+    for sec in _EXPLORE_SECTIONS:
+        try:
+            items = await _fetch_section_items(sec["key"])
+        except Exception:
+            items = []
+
+        lines.append(f"\n**{sec['label']}**")
+        previews = items[:EXPLORE_PREVIEW]
+        for it in previews:
+            lines.append(_preview_label(it, sec["tipo"]))
+
+        rows.append([Button.inline(
+            f"👁 Visualizar tudo — {sec['label']}",
+            f"exp:{sec['key']}".encode()
+        )])
+
+    text = "\n".join(lines)
+    rows.append([Button.inline("🏠 Menu", b"mn")])
+
     try:
-        await event.edit(
-            "🌐 **Explorar**\n\nEscolha uma seção:",
-            buttons=_explore_menu_btns(), parse_mode="md")
+        await event.edit(text, buttons=rows, parse_mode="md")
     except Exception:
-        await bot.send_message(
-            event.sender_id,
-            "🌐 **Explorar**\n\nEscolha uma seção:",
-            buttons=_explore_menu_btns(), parse_mode="md")
+        await bot.send_message(uid, text, buttons=rows, parse_mode="md")
 
 
 @bot.on(events.CallbackQuery(pattern=rb"exp:(\w+)"))
 async def h_explore_section(event):
-    """Usuário selecionou uma seção do Explorar."""
+    """Usuário clicou Visualizar tudo de uma seção."""
     if not await _gate(event): return
     await event.answer()
-    uid     = event.sender_id
-    section = event.pattern_match.group(1).decode()
+    uid = event.sender_id
+    key = event.pattern_match.group(1).decode()
 
-    if section not in _SECTION_META:
+    if key not in _SECTION_BY_KEY:
         return await event.edit(
             "❌ Seção inválida.",
             buttons=[[Button.inline("◀️ Explorar", b"explore")]],
             parse_mode="md")
 
-    await event.edit(f"🔍 Carregando…", parse_mode="md")
+    sec = _SECTION_BY_KEY[key]
+    await event.edit("🔍 Carregando…", parse_mode="md")
 
     try:
-        items, tipo, titulo = await _get_explore_data(section)
+        items = await _fetch_section_items(key)
     except Exception as e:
         return await event.edit(
-            friendly_error(e, f"explore {section}"),
+            friendly_error(e, f"explore {key}"),
             buttons=[[Button.inline("◀️ Explorar", b"explore"),
                       Button.inline("🏠 Menu", b"mn")]],
             parse_mode="md")
 
     if not items:
         return await event.edit(
-            f"😔 Nenhum resultado encontrado.",
+            "😔 Nenhum resultado encontrado.",
             buttons=[[Button.inline("◀️ Explorar", b"explore"),
                       Button.inline("🏠 Menu", b"mn")]],
             parse_mode="md")
 
-    _explore_page[uid] = (section, 0)
-    btns = _explore_page_btns(section, 0, items, tipo)
+    _explore_page[uid] = (key, 0)
+    btns = _explore_page_btns(key, 0, items, sec["tipo"])
     try:
-        await event.edit(titulo + "\n\nEscolha um item:",
+        await event.edit(sec["titulo"] + "\n\nEscolha um item:",
                          buttons=btns, parse_mode="md")
     except Exception:
-        await bot.send_message(uid, titulo + "\n\nEscolha um item:",
+        await bot.send_message(uid, sec["titulo"] + "\n\nEscolha um item:",
                                buttons=btns, parse_mode="md")
 
 
@@ -1953,16 +1956,18 @@ async def h_explore_page(event):
     """Paginação do Explorar."""
     if not await _gate(event): return
     await event.answer()
-    uid     = event.sender_id
-    section = event.pattern_match.group(1).decode()
-    page    = int(event.pattern_match.group(2))
+    uid = event.sender_id
+    key  = event.pattern_match.group(1).decode()
+    page = int(event.pattern_match.group(2))
 
-    if section not in _SECTION_META:
+    if key not in _SECTION_BY_KEY:
         return
 
-    _explore_page[uid] = (section, page)
+    sec = _SECTION_BY_KEY[key]
+    _explore_page[uid] = (key, page)
+
     try:
-        items, tipo, titulo = await _get_explore_data(section)
+        items = await _fetch_section_items(key)
     except Exception as e:
         return await event.edit(
             friendly_error(e, f"explore page"),
@@ -1970,107 +1975,12 @@ async def h_explore_page(event):
                       Button.inline("🏠 Menu", b"mn")]],
             parse_mode="md")
 
-    btns = _explore_page_btns(section, page, items, tipo)
+    btns = _explore_page_btns(key, page, items, sec["tipo"])
     try:
-        await event.edit(titulo + "\n\nEscolha um item:",
+        await event.edit(sec["titulo"] + "\n\nEscolha um item:",
                          buttons=btns, parse_mode="md")
     except Exception:
         pass
-
-
-@bot.on(events.CallbackQuery(pattern=rb"exprad:(\d+)"))
-async def h_explore_radio(event):
-    """Usuário selecionou uma rádio — mostra as faixas da rádio."""
-    if not await _gate(event): return
-    await event.answer()
-    uid = event.sender_id
-    rid = event.pattern_match.group(1).decode()
-
-    await event.edit("🔍 Carregando faixas da rádio…", parse_mode="md")
-
-    pg = DeezerPager(
-        "📻 **Rádio** — Faixas",
-        f"{DZ}/radio/{rid}/tracks",
-        {},
-        "track",
-    )
-    try:
-        await pg.get_page(0)
-    except Exception as e:
-        return await event.edit(
-            friendly_error(e, f"radio {rid}"),
-            buttons=[[Button.inline("◀️ Explorar", b"explore"),
-                      Button.inline("🏠 Menu", b"mn")]],
-            parse_mode="md")
-
-    if pg.total == 0:
-        return await event.edit(
-            "😔 Nenhuma faixa encontrada.",
-            buttons=[[Button.inline("◀️ Explorar", b"explore"),
-                      Button.inline("🏠 Menu", b"mn")]],
-            parse_mode="md")
-
-    st = nav(uid)
-    st.stack.clear()
-    st.push(pg)
-    btns = await pager_btns(uid)
-    try:
-        await event.edit(pg.title, buttons=btns, parse_mode="md")
-    except Exception:
-        await bot.send_message(uid, pg.title, buttons=btns, parse_mode="md")
-
-
-@bot.on(events.CallbackQuery(pattern=rb"expedit:(\d+)"))
-async def h_explore_editorial(event):
-    """Usuário selecionou um editorial — mostra álbuns/playlists."""
-    if not await _gate(event): return
-    await event.answer()
-    uid = event.sender_id
-    eid = event.pattern_match.group(1).decode()
-
-    await event.edit("🔍 Carregando editorial…", parse_mode="md")
-
-    # Editorial pode ter releases (álbuns)
-    pg = DeezerPager(
-        "📰 **Editorial** — Seleção",
-        f"{DZ}/editorial/{eid}/releases",
-        {},
-        "album",
-    )
-    try:
-        await pg.get_page(0)
-    except Exception:
-        # Fallback: tentar charts do editorial
-        pg = DeezerPager(
-            "📰 **Editorial** — Seleção",
-            f"{DZ}/editorial/{eid}/charts",
-            {},
-            "album",
-        )
-        try:
-            await pg.get_page(0)
-        except Exception as e:
-            return await event.edit(
-                friendly_error(e, f"editorial {eid}"),
-                buttons=[[Button.inline("◀️ Explorar", b"explore"),
-                          Button.inline("🏠 Menu", b"mn")]],
-                parse_mode="md")
-
-    if pg.total == 0:
-        return await event.edit(
-            "😔 Nenhum conteúdo encontrado.",
-            buttons=[[Button.inline("◀️ Explorar", b"explore"),
-                      Button.inline("🏠 Menu", b"mn")]],
-            parse_mode="md")
-
-    st = nav(uid)
-    st.stack.clear()
-    st.push(pg)
-    btns = await pager_btns(uid)
-    try:
-        await event.edit(pg.title, buttons=btns, parse_mode="md")
-    except Exception:
-        await bot.send_message(uid, pg.title, buttons=btns, parse_mode="md")
 
 
 # ═══════════════════════════════════════════════════════════════
