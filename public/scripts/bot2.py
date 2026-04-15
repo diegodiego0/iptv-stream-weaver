@@ -62,7 +62,7 @@ BLOCK_SECS     = 60
 SPAM_WINDOW    = 2.0
 SPAM_SOFT      = 20
 SPAM_HARD      = 35
-MAX_GLOBAL_DL  = 4
+MAX_GLOBAL_DL  = 8
 MAX_SEND_PARA  = 5
 FFMPEG_BIN     = shutil.which("ffmpeg") or "ffmpeg"
 
