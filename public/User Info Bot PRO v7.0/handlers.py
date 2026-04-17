@@ -220,7 +220,7 @@ def register_handlers(bot, user_client):
             articles.append(event.builder.article(
                 title=f"{r.get('nome_atual','?')}",
                 description=r.get('username_atual','Nenhum'),
-                text=text, parse_mode='html',
+                text=to_html(text), parse_mode='html',
             ))
         await event.answer(articles or [],
                             switch_pm="Não encontrado — abrir bot",
