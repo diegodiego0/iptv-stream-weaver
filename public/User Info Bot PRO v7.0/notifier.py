@@ -11,11 +11,12 @@ from config import OWNER_ID
 from db import log, carregar_dados
 from profile import formatar_perfil
 from ui import perfil_link_buttons
+from format import to_html
 
 
 async def notificar_simples(bot, texto: str):
     try:
-        await bot.send_message(OWNER_ID, texto, parse_mode='md')
+        await bot.send_message(OWNER_ID, to_html(texto), parse_mode='html')
     except Exception as e:
         log(f"Erro notificação: {e}")
 
@@ -47,8 +48,8 @@ async def notificar_mudanca_completa(bot, uid: str, mudancas: list,
     try:
         await bot.send_message(
             OWNER_ID,
-            cabecalho + perfil,
-            parse_mode='md',
+            to_html(cabecalho + perfil),
+            parse_mode='html',
             buttons=perfil_link_buttons(db[uid]) or None,
             link_preview=False,
         )
