@@ -553,7 +553,7 @@ def register_handlers(bot, user_client):
                     f"└ _@Edkd1_"
                 )
                 await bot.send_file(chat_id, tmp_path,
-                                     caption=caption, parse_mode='html')
+                                     caption=to_html(caption), parse_mode='html')
                 os.unlink(tmp_path)
                 await msg_temp.delete()
                 return
