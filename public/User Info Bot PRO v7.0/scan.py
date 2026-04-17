@@ -11,6 +11,7 @@ from db import (carregar_dados, salvar_dados, log, agora_str,
                 ensure_user_shape)
 from profile import obter_perfil_completo, aplicar_atualizacao_campos
 from notifier import notificar_mudanca_completa
+from format import to_html
 
 
 _scan_running = False
@@ -37,8 +38,8 @@ async def executar_varredura(user_client, bot, notify_chat=None):
 
     if notify_chat:
         await bot.send_message(notify_chat,
-            "🔄 *Varredura iniciada...*\n⏳ Aguarde notificação ao finalizar.",
-            parse_mode='md')
+            to_html("🔄 *Varredura iniciada...*\n⏳ Aguarde notificação ao finalizar."),
+            parse_mode='html')
 
     log("🔄 Varredura iniciada")
     try:
@@ -118,10 +119,10 @@ async def executar_varredura(user_client, bot, notify_chat=None):
         from lang import t
         await bot.send_message(
             notify_chat,
-            t("scan_done", notify_chat,
+            to_html(t("scan_done", notify_chat,
               g=scan_stats['groups_scanned'],
               u=scan_stats['users_scanned'],
               c=scan_stats['changes_detected'],
-              ts=agora),
-            parse_mode='md', buttons=voltar_button(notify_chat)
+              ts=agora)),
+            parse_mode='html', buttons=voltar_button(notify_chat)
         )

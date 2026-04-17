@@ -34,6 +34,7 @@ from combo import gerar_combo_para_usuario
 from quota import get_used, remaining, add_used
 import scan as scan_mod
 from dm import salvar_usuario_dm
+from format import to_html
 
 
 # ── Estado por chat ──
@@ -47,12 +48,12 @@ search_cache       = {}   # {chat_id: {"query","results_ids","username_only"}}
 async def _send_perfil(bot, chat_id, uid, viewer_id):
     db = carregar_dados()
     if uid not in db:
-        await bot.send_message(chat_id, "❌ Usuário não encontrado no banco.",
-                               parse_mode='md', buttons=voltar_button(viewer_id))
+        await bot.send_message(chat_id, to_html("❌ Usuário não encontrado no banco."),
+                               parse_mode='html', buttons=voltar_button(viewer_id))
         return
     text = formatar_perfil(uid, db[uid], viewer_id, db)
     await bot.send_message(
-        chat_id, text, parse_mode='md',
+        chat_id, to_html(text), parse_mode='html',
         buttons=[
             *perfil_link_buttons(db[uid]),
             [Button.inline("📜 Histórico", f"hist_{uid}_page_0".encode())],
@@ -68,9 +69,9 @@ async def _enviar_resultados(bot, event, query, results, viewer_id, db,
     if not results:
         text = t("search_no_results", viewer_id, q=query)
         if edit:
-            await event.edit(text, parse_mode='md', buttons=voltar_button(viewer_id))
+            await event.edit(to_html(text), parse_mode='html', buttons=voltar_button(viewer_id))
         else:
-            await bot.send_message(chat_id, text, parse_mode='md',
+            await bot.send_message(chat_id, to_html(text), parse_mode='html',
                                     buttons=voltar_button(viewer_id))
         return
 
@@ -103,9 +104,9 @@ async def _enviar_resultados(bot, event, query, results, viewer_id, db,
     btns.append([Button.inline(t("btn_back_menu", viewer_id), b"cmd_menu")])
 
     if edit:
-        await event.edit(text, parse_mode='md', buttons=btns, link_preview=False)
+        await event.edit(to_html(text), parse_mode='html', buttons=btns, link_preview=False)
     else:
-        await bot.send_message(chat_id, text, parse_mode='md',
+        await bot.send_message(chat_id, to_html(text), parse_mode='html',
                                 buttons=btns, link_preview=False)
 
 
@@ -122,8 +123,8 @@ def register_handlers(bot, user_client):
         uid   = event.sender_id
         role  = t("role_owner", uid) if owner else t("role_user", uid)
         await event.respond(
-            t("start_card", uid, bot=BOT_USERNAME, role=role),
-            parse_mode='md',
+            to_html(t("start_card", uid, bot=BOT_USERNAME, role=role)),
+            parse_mode='html',
             buttons=menu_principal_buttons(owner, uid),
             link_preview=False,
         )
@@ -135,7 +136,7 @@ def register_handlers(bot, user_client):
     @bot.on(events.NewMessage(pattern=r'^/lang(?:\s|$)'))
     async def cmd_lang_msg(event):
         uid = event.sender_id
-        await event.respond(t("lang_menu", uid), parse_mode='md',
+        await event.respond(to_html(t("lang_menu", uid)), parse_mode='html',
                             buttons=lang_menu_buttons(uid))
 
     # ─── /buscar <termo> (única forma de busca direta) ───
@@ -147,8 +148,8 @@ def register_handlers(bot, user_client):
         m = event.pattern_match.group(1)
         if not m:
             await event.respond(
-                t("search_prompt", event.sender_id, bot=BOT_USERNAME),
-                parse_mode='md', buttons=voltar_button(event.sender_id),
+                to_html(t("search_prompt", event.sender_id, bot=BOT_USERNAME)),
+                parse_mode='html', buttons=voltar_button(event.sender_id),
             )
             return
         query   = m.strip()
@@ -164,8 +165,8 @@ def register_handlers(bot, user_client):
         parts = event.pattern_match.group(1).split()
         if len(parts) != 3:
             await event.respond(
-                "Uso: `/setcombo <uid|@user|global> <free> <premium>`",
-                parse_mode='md'); return
+                to_html("Uso: `/setcombo <uid|@user|global> <free> <premium>`"),
+                parse_mode='html'); return
         target, free_s, prem_s = parts
         try:
             free_v, prem_v = int(free_s), int(prem_s)
@@ -177,8 +178,8 @@ def register_handlers(bot, user_client):
             db["_settings"]["premium_combo_limit"]                = prem_v
             salvar_dados(db)
             await event.respond(
-                f"✅ Globais → free: *{free_v}* / premium: *{prem_v}*",
-                parse_mode='md'); return
+                to_html(f"✅ Globais → free: *{free_v}* / premium: *{prem_v}*"),
+                parse_mode='html'); return
         # Resolve target → uid
         if target.isdigit():
             uid = target
@@ -194,8 +195,8 @@ def register_handlers(bot, user_client):
         db[uid]["custom_combo_limits"]["premium"] = prem_v
         salvar_dados(db)
         await event.respond(
-            f"✅ `{uid}` → free: *{free_v}* / premium: *{prem_v}*",
-            parse_mode='md')
+            to_html(f"✅ `{uid}` → free: *{free_v}* / premium: *{prem_v}*"),
+            parse_mode='html')
 
     # ─── INLINE: SOMENTE @username ───
     @bot.on(events.InlineQuery)
@@ -219,7 +220,7 @@ def register_handlers(bot, user_client):
             articles.append(event.builder.article(
                 title=f"{r.get('nome_atual','?')}",
                 description=r.get('username_atual','Nenhum'),
-                text=text, parse_mode='md',
+                text=to_html(text), parse_mode='html',
             ))
         await event.answer(articles or [],
                             switch_pm="Não encontrado — abrir bot",
@@ -254,14 +255,14 @@ def register_handlers(bot, user_client):
                 uid_resolved, _, _, _ = await upsert_usuario_externo(
                     user_client, text, fonte="Premium add")
                 if not uid_resolved:
-                    await event.respond(t("user_not_found", sender_id, q=text),
-                                        parse_mode='md',
+                    await event.respond(to_html(t("user_not_found", sender_id, q=text)),
+                                        parse_mode='html',
                                         buttons=voltar_button(sender_id)); return
                 pending_module_sel[chat_id] = {"target": uid_resolved,
                                                 "modules": set()}
                 await event.respond(
-                    f"⭐ Selecionar módulos para `{uid_resolved}`",
-                    parse_mode='md',
+                    to_html(f"⭐ Selecionar módulos para `{uid_resolved}`"),
+                    parse_mode='html',
                     buttons=module_selection_buttons(set(), uid_resolved),
                 ); return
 
@@ -283,8 +284,8 @@ def register_handlers(bot, user_client):
                 db[uid_t].setdefault("premium", {})["active"] = False
                 db[uid_t]["premium"]["modules"] = []
                 salvar_dados(db)
-                await event.respond(f"✅ Premium removido de `{uid_t}`",
-                                    parse_mode='md',
+                await event.respond(to_html(f"✅ Premium removido de `{uid_t}`"),
+                                    parse_mode='html',
                                     buttons=voltar_button(sender_id)); return
 
             if action and action.startswith("ocultar:"):
@@ -314,14 +315,14 @@ def register_handlers(bot, user_client):
                 salvar_dados(db)
                 state = "🙈 oculto" if hidden[field] else "👁 visível"
                 await event.respond(
-                    f"✅ Campo `{field}` agora está {state} para `{uid_t}`",
-                    parse_mode='md', buttons=voltar_button(sender_id))
+                    to_html(f"✅ Campo `{field}` agora está {state} para `{uid_t}`"),
+                    parse_mode='html', buttons=voltar_button(sender_id))
                 return
 
         # Sem estado pendente: dica
         await event.respond(
-            t("hint_use_start", sender_id, bot=BOT_USERNAME),
-            parse_mode='md', buttons=voltar_button(sender_id))
+            to_html(t("hint_use_start", sender_id, bot=BOT_USERNAME)),
+            parse_mode='html', buttons=voltar_button(sender_id))
 
     # ──────────────────────────────────────────
     @bot.on(events.CallbackQuery)
@@ -337,12 +338,12 @@ def register_handlers(bot, user_client):
             # ── Menu / navegação ──
             if data == "cmd_menu":
                 await message.edit(
-                    t("menu_title", sender_id), parse_mode='md',
+                    to_html(t("menu_title", sender_id)), parse_mode='html',
                     buttons=menu_principal_buttons(owner, sender_id))
                 return
 
             if data == "cmd_lang":
-                await message.edit(t("lang_menu", sender_id), parse_mode='md',
+                await message.edit(to_html(t("lang_menu", sender_id)), parse_mode='html',
                                     buttons=lang_menu_buttons(sender_id)); return
 
             if data.startswith("setlang|"):
@@ -365,21 +366,21 @@ def register_handlers(bot, user_client):
                     set_user_lang(sender_id, code)
                     await event.answer(t("lang_changed", sender_id,
                                          name=nome_idioma(code)))
-                await message.edit(t("lang_menu", sender_id), parse_mode='md',
+                await message.edit(to_html(t("lang_menu", sender_id)), parse_mode='html',
                                     buttons=lang_menu_buttons(sender_id)); return
 
             if data == "cmd_buscar":
                 pending_states[chat_id] = {"action": "search", "data": {}}
                 await message.edit(
-                    t("search_prompt", sender_id, bot=BOT_USERNAME),
-                    parse_mode='md', buttons=voltar_button(sender_id)); return
+                    to_html(t("search_prompt", sender_id, bot=BOT_USERNAME)),
+                    parse_mode='html', buttons=voltar_button(sender_id)); return
 
             if data == "cmd_about":
-                await message.edit(t("about_text", sender_id), parse_mode='md',
+                await message.edit(to_html(t("about_text", sender_id)), parse_mode='html',
                                     buttons=voltar_button(sender_id)); return
 
             if data == "cmd_config":
-                await message.edit(t("config_text", sender_id), parse_mode='md',
+                await message.edit(to_html(t("config_text", sender_id)), parse_mode='html',
                                     buttons=voltar_button(sender_id)); return
 
             if data == "cmd_stats":
@@ -392,9 +393,9 @@ def register_handlers(bot, user_client):
                             for k, v in db.items() if not k.startswith("_"))
                 last  = scan_mod.scan_stats.get("last_scan") or "—"
                 await message.edit(
-                    t("stats_title", sender_id, total=total, prem=prem,
-                      chg=chg, last=last),
-                    parse_mode='md', buttons=voltar_button(sender_id)); return
+                    to_html(t("stats_title", sender_id, total=total, prem=prem,
+                      chg=chg, last=last)),
+                    parse_mode='html', buttons=voltar_button(sender_id)); return
 
             if data == "cmd_recent":
                 db = carregar_dados()
@@ -413,7 +414,7 @@ def register_handlers(bot, user_client):
                             h.get("tipo"), "🔄")
                         txt += (f"{em} `{data_h}` `{nome}`\n"
                                 f"  {h['de']} ➜ {h['para']}\n")
-                await message.edit(txt, parse_mode='md',
+                await message.edit(to_html(txt), parse_mode='html',
                                     buttons=voltar_button(sender_id)); return
 
             # ── Perfil ──
@@ -423,8 +424,8 @@ def register_handlers(bot, user_client):
                 if uid not in db:
                     await event.answer("❌ Não encontrado.", alert=True); return
                 await message.edit(
-                    formatar_perfil(uid, db[uid], sender_id, db),
-                    parse_mode='md',
+                    to_html(formatar_perfil(uid, db[uid], sender_id, db)),
+                    parse_mode='html',
                     buttons=[
                         *perfil_link_buttons(db[uid]),
                         [Button.inline("📜 Histórico",
@@ -466,7 +467,7 @@ def register_handlers(bot, user_client):
                     txt += "_Sem registros._"
                 if not prem:
                     txt += "⚠️ _Histórico limitado (Free)._"
-                await message.edit(txt, parse_mode='md',
+                await message.edit(to_html(txt), parse_mode='html',
                                     buttons=paginar_buttons(
                                         f"hist_{uid}", page, total_pages,
                                         sender_id)); return
@@ -482,8 +483,8 @@ def register_handlers(bot, user_client):
                     # Sem cache — pede nova busca em vez de mostrar "expirou"
                     pending_states[chat_id] = {"action": "search", "data": {}}
                     await message.edit(
-                        "🔍 Digite novamente o que deseja buscar.",
-                        parse_mode='md', buttons=voltar_button(sender_id)); return
+                        to_html("🔍 Digite novamente o que deseja buscar."),
+                        parse_mode='html', buttons=voltar_button(sender_id)); return
                 db = carregar_dados()
                 results = [{**db[uid], "id": uid}
                            for uid in cache["results_ids"] if uid in db]
@@ -503,15 +504,15 @@ def register_handlers(bot, user_client):
                 rem  = max(0, daily_total - used)
                 if rem <= 0:
                     await message.edit(
-                        t("combo_quota_exceeded", sender_id,
-                          used=used, total=daily_total),
-                        parse_mode='md', buttons=voltar_button(sender_id))
+                        to_html(t("combo_quota_exceeded", sender_id,
+                          used=used, total=daily_total)),
+                        parse_mode='html', buttons=voltar_button(sender_id))
                     return
                 await event.answer(f"📋 Gerando até {rem} combos...")
                 msg_temp = await bot.send_message(
                     chat_id,
-                    t("combo_generating", sender_id, lim=rem),
-                    parse_mode='md',
+                    to_html(t("combo_generating", sender_id, lim=rem)),
+                    parse_mode='html',
                     buttons=[[Button.inline("❌ Cancelar", b"cmd_menu")]])
                 # Override de limites para respeitar o que sobrou hoje
                 from combo import gerar_combo_para_usuario
@@ -524,13 +525,13 @@ def register_handlers(bot, user_client):
                 if not combos:
                     if stats["groups_own"] == 0 and stats["groups_extra"] == 0:
                         await msg_temp.edit(
-                            t("combo_no_groups", sender_id),
-                            parse_mode='md',
+                            to_html(t("combo_no_groups", sender_id)),
+                            parse_mode='html',
                             buttons=voltar_button(sender_id))
                     else:
                         await msg_temp.edit(
-                            t("combo_none", sender_id),
-                            parse_mode='md',
+                            to_html(t("combo_none", sender_id)),
+                            parse_mode='html',
                             buttons=voltar_button(sender_id))
                     return
                 # Persiste contagem
@@ -552,7 +553,7 @@ def register_handlers(bot, user_client):
                     f"└ _@Edkd1_"
                 )
                 await bot.send_file(chat_id, tmp_path,
-                                     caption=caption, parse_mode='md')
+                                     caption=to_html(caption), parse_mode='html')
                 os.unlink(tmp_path)
                 await msg_temp.delete()
                 return
@@ -592,8 +593,8 @@ def register_handlers(bot, user_client):
                     *voltar_button(sender_id),
                 ]
                 await message.edit(
-                    "🙈 *Ocultar Informações*\n\nEscolha o campo:",
-                    parse_mode='md', buttons=rows); return
+                    to_html("🙈 *Ocultar Informações*\n\nEscolha o campo:"),
+                    parse_mode='html', buttons=rows); return
 
             if data.startswith("ocultar:"):
                 if not owner:
@@ -603,9 +604,9 @@ def register_handlers(bot, user_client):
                 pending_states[chat_id] = {"action": f"ocultar:{field}",
                                             "data": {}}
                 await message.edit(
-                    f"🙈 Envie o *ID* ou *@username* do alvo "
-                    f"para alternar o campo `{field}`:",
-                    parse_mode='md', buttons=voltar_button(sender_id)); return
+                    to_html(f"🙈 Envie o *ID* ou *@username* do alvo "
+                    f"para alternar o campo `{field}`:"),
+                    parse_mode='html', buttons=voltar_button(sender_id)); return
 
             if data == "cmd_premium_menu":
                 if not owner:
@@ -618,21 +619,21 @@ def register_handlers(bot, user_client):
                     *voltar_button(sender_id),
                 ]
                 await message.edit(
-                    "⭐ *Gerenciar Premium*", parse_mode='md', buttons=rows); return
+                    to_html("⭐ *Gerenciar Premium*"), parse_mode='html', buttons=rows); return
 
             if data == "prem_add":
                 if not owner: return
                 pending_states[chat_id] = {"action":"premium_add", "data":{}}
                 await message.edit(
-                    "➕ Envie o *ID* ou *@username* do alvo:",
-                    parse_mode='md', buttons=voltar_button(sender_id)); return
+                    to_html("➕ Envie o *ID* ou *@username* do alvo:"),
+                    parse_mode='html', buttons=voltar_button(sender_id)); return
 
             if data == "prem_rem":
                 if not owner: return
                 pending_states[chat_id] = {"action":"premium_remove", "data":{}}
                 await message.edit(
-                    "➖ Envie o *ID* ou *@username* para remover premium:",
-                    parse_mode='md', buttons=voltar_button(sender_id)); return
+                    to_html("➖ Envie o *ID* ou *@username* para remover premium:"),
+                    parse_mode='html', buttons=voltar_button(sender_id)); return
 
             if data == "prem_list":
                 if not owner: return
@@ -646,7 +647,7 @@ def register_handlers(bot, user_client):
                     for k,v in lst[:30]:
                         mods = ", ".join(v["premium"].get("modules",[])) or "—"
                         txt += f"• `{k}` `{v.get('nome_atual','?')}` _({mods})_\n"
-                await message.edit(txt, parse_mode='md',
+                await message.edit(to_html(txt), parse_mode='html',
                                     buttons=voltar_button(sender_id)); return
 
             if data.startswith("tmod|"):
@@ -662,8 +663,8 @@ def register_handlers(bot, user_client):
                 else:
                     sel.add(mod_key)
                 await message.edit(
-                    f"⭐ Selecionar módulos para `{target_uid}`",
-                    parse_mode='md',
+                    to_html(f"⭐ Selecionar módulos para `{target_uid}`"),
+                    parse_mode='html',
                     buttons=module_selection_buttons(sel, target_uid)); return
 
             if data.startswith("cprem|"):
@@ -683,9 +684,9 @@ def register_handlers(bot, user_client):
                 mods_txt = "\n".join(
                     f"• {PREMIUM_MODULES[m]}" for m in sel) or "_(nenhum)_"
                 await message.edit(
-                    f"✅ *Premium ativado!*\n\n👤 `{db[target_uid].get('nome_atual','?')}` "
-                    f"(`{target_uid}`)\n\n*Módulos:*\n{mods_txt}",
-                    parse_mode='md', buttons=voltar_button(sender_id)); return
+                    to_html(f"✅ *Premium ativado!*\n\n👤 `{db[target_uid].get('nome_atual','?')}` "
+                    f"(`{target_uid}`)\n\n*Módulos:*\n{mods_txt}"),
+                    parse_mode='html', buttons=voltar_button(sender_id)); return
 
             if data == "cmd_combo_config":
                 if not owner:
@@ -705,7 +706,7 @@ def register_handlers(bot, user_client):
                     "`/setcombo global <free> <premium>`\n"
                     "`/setcombo <uid|@user> <free> <premium>`"
                 )
-                await message.edit(txt, parse_mode='md',
+                await message.edit(to_html(txt), parse_mode='html',
                                     buttons=voltar_button(sender_id)); return
 
             if data == "noop":
