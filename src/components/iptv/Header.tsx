@@ -1,12 +1,12 @@
-import { Search, Filter, Clock, User, Bell, Wifi } from 'lucide-react';
+import { Search, Filter, Clock, Bell, Wifi } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface HeaderProps {
   onSearchClick: () => void;
-  onProfileClick: () => void;
+  onProfileClick?: () => void;
 }
 
-export const Header = ({ onSearchClick, onProfileClick }: HeaderProps) => {
+export const Header = ({ onSearchClick }: HeaderProps) => {
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
