@@ -2037,5 +2037,216 @@ const _origShowHome=showHome;
 showHome=function(){setActiveByPage('home');loadHome()};
 route();
 </script>
+
+<!-- ════════════════════════════════════════════════════════════
+     IMPROVEMENTS APPENDED (preserva 100% do código original)
+     1) Fix de auto-pause (MediaSession + auto-resume + visibility)
+     2) Layout estilo Spotify (mantém cores originais)
+     ════════════════════════════════════════════════════════════ -->
+<style id="spotify-layout-overrides">
+/* ====== SPOTIFY-LIKE SHELL (mantém cores originais) ====== */
+:root{
+  --sp-gap:8px;
+  --sp-radius:12px;
+}
+@media(min-width:900px){
+  body{background:#000 !important;padding:var(--sp-gap) var(--sp-gap) calc(var(--player-h) + var(--sp-gap)) var(--sp-gap)}
+  .app{
+    height:calc(100vh - var(--player-h) - var(--sp-gap)*2) !important;
+    grid-template-areas:"nav main" !important;
+    grid-template-rows:1fr !important;
+    gap:var(--sp-gap);
+    background:transparent !important;
+  }
+  /* Sidebar como card Spotify */
+  .nav{
+    background:#121212 !important;
+    border-radius:var(--sp-radius);
+    padding:1rem .75rem 1rem !important;
+  }
+  /* Main como card Spotify */
+  main{
+    background:linear-gradient(180deg,#1f1f1f 0%, var(--bg) 240px) !important;
+    border-radius:var(--sp-radius);
+    overflow:hidden;
+  }
+  main > *{ }
+  #main-area, main{overflow-y:auto}
+  .topbar{
+    background:rgba(18,18,18,.72) !important;
+    border-bottom:none !important;
+    border-top-left-radius:var(--sp-radius);
+    border-top-right-radius:var(--sp-radius);
+  }
+  /* Player flutuante embaixo, full width */
+  .player, #player, [class*="player-bar"], .pb{
+    border-top:none !important;
+  }
+}
+/* Sidebar: agrupa biblioteca como Spotify */
+.nav-section{
+  background:transparent;
+  color:#b3b3b3 !important;
+  font-size:.7rem !important;
+  letter-spacing:.08em !important;
+  padding:1rem .6rem .4rem !important;
+}
+.nav-btn{border-radius:6px !important;font-weight:700 !important}
+.nav-btn:hover{background:rgba(255,255,255,.08) !important}
+.nav-btn.active{background:rgba(255,255,255,.08) !important;color:#fff !important}
+.nav-logo{font-size:1.05rem !important}
+
+/* Top bar tipo Spotify: setas + barra de busca pill maior */
+.topbar{padding:.9rem 1.25rem !important;gap:1rem !important}
+.nav-arrow{width:32px !important;height:32px !important;background:rgba(0,0,0,.7) !important}
+.search-wrap input{border-radius:500px !important;padding:.7rem 1rem .7rem 2.75rem !important}
+
+/* Cards Spotify: cantos mais arredondados, hover sutil */
+.card{
+  background:#181818 !important;
+  border:none !important;
+  border-radius:8px !important;
+  transition:background .25s ease !important;
+}
+.card:hover{background:#282828 !important}
+.card-img{border-radius:6px !important;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.card-play{
+  background:#1ed760 !important;
+  color:#000 !important;
+  width:48px !important;height:48px !important;
+  box-shadow:0 8px 16px rgba(0,0,0,.4) !important;
+}
+.card-play:hover{background:#1fdf64 !important;transform:translateY(-2px) scale(1.04) !important}
+.qc-card, .quick-card{background:rgba(255,255,255,.07) !important;border:none !important;border-radius:6px !important;height:64px !important}
+.quick-card:hover{background:rgba(255,255,255,.14) !important}
+.qc-img{width:64px !important;height:64px !important}
+.qc-play{background:#1ed760 !important;color:#000 !important;width:40px !important;height:40px !important;font-size:1rem !important}
+
+/* Seções: títulos maiores estilo Spotify */
+.sec-title{font-size:1.5rem !important;font-weight:800 !important;letter-spacing:-.04em !important}
+.sec-more{text-transform:uppercase;font-size:.7rem !important;letter-spacing:.1em !important;color:#b3b3b3 !important}
+.greeting{font-size:clamp(1.5rem,3vw,2rem) !important;font-weight:800 !important;padding-top:2rem !important}
+
+/* Listas (chart/track) — Spotify */
+.chi, .ti{border-radius:4px !important;border:none !important}
+.chi:hover, .ti:hover{background:rgba(255,255,255,.08) !important;border:none !important}
+.chi.active, .ti.active{background:rgba(255,255,255,.1) !important;border:none !important}
+.chi.active .chi-title, .chi.active .chi-num, .ti.active .ti-title, .ti.active .ti-num{color:#1ed760 !important}
+
+/* Player bar: barra inferior preta como Spotify */
+.player, .pb, [class^="player"], [class*=" player"]{}
+.pb-play, .pd-play{background:#fff !important;color:#000 !important}
+.pb-play:hover, .pd-play:hover{background:#fff !important;transform:scale(1.06)}
+.pb-fill, .pd-bar-fill, .mini-prog-fill, #prog-fill{background:#fff !important}
+.pb-bar:hover .pb-fill, .pd-bar:hover .pd-bar-fill{background:#1ed760 !important}
+
+/* Tabs ativas estilo Spotify */
+.ttab.active, .aptab.active{background:#fff !important;color:#000 !important}
+.sr-tab.active{background:#1ed760 !important;color:#000 !important;border-color:#1ed760 !important}
+
+/* Mobile: nada agressivo, deixa o layout original responsivo */
+@media(max-width:899px){
+  body{padding:0 !important;background:var(--bg) !important}
+}
+</style>
+
+<script id="spotify-improvements">
+(function(){
+  const audioEl = document.getElementById('audio');
+  if(!audioEl) return;
+
+  // Garante reprodução inline em mobile
+  audioEl.setAttribute('playsinline','');
+  audioEl.setAttribute('webkit-playsinline','');
+  audioEl.crossOrigin = audioEl.crossOrigin || 'anonymous';
+
+  // ---------- Fix: auto-pause indesejado ----------
+  // 1) Re-tenta automaticamente em stall / waiting prolongado
+  let _stallTimer=null;
+  const tryResume = ()=>{
+    if(!audioEl.src) return;
+    if(audioEl.paused && audioEl._userPaused!==true){
+      const p=audioEl.play();
+      if(p && p.catch) p.catch(()=>{});
+    }
+  };
+  audioEl.addEventListener('stalled',()=>{
+    clearTimeout(_stallTimer);
+    _stallTimer=setTimeout(tryResume, 1500);
+  });
+  audioEl.addEventListener('waiting',()=>{
+    clearTimeout(_stallTimer);
+    _stallTimer=setTimeout(tryResume, 4000);
+  });
+  audioEl.addEventListener('canplay',()=>{clearTimeout(_stallTimer)});
+  audioEl.addEventListener('playing',()=>{clearTimeout(_stallTimer)});
+
+  // 2) Distingue pause do usuário vs pause do sistema
+  // Marca _userPaused=true só quando o clique vier dos botões de play/pause
+  ['btn-play','m-play','pd-play'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('click',()=>{
+      // Após o togglePlay original rodar, ajustamos a flag no próximo tick
+      setTimeout(()=>{ audioEl._userPaused = audioEl.paused; },0);
+    });
+  });
+  audioEl.addEventListener('play',()=>{ audioEl._userPaused=false; });
+
+  // 3) Reage à mudança de visibilidade: não pausa ao voltar; retoma se foi pausa do sistema
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden) tryResume();
+  });
+
+  // 4) Reage a interrupções de áudio (fones desconectando etc.)
+  if('audioSession' in navigator){
+    try{ navigator.audioSession.type='playback'; }catch(_){}
+  }
+
+  // 5) MediaSession (lockscreen / teclas de mídia) — controla pause sem perder estado
+  if('mediaSession' in navigator){
+    const ms=navigator.mediaSession;
+    const setHandler=(act,fn)=>{ try{ ms.setActionHandler(act,fn); }catch(_){} };
+    setHandler('play',()=>{ audioEl._userPaused=false; audioEl.play().catch(()=>{}); });
+    setHandler('pause',()=>{ audioEl._userPaused=true; audioEl.pause(); });
+    setHandler('previoustrack',()=>{ document.getElementById('btn-prev')?.click(); });
+    setHandler('nexttrack',()=>{ document.getElementById('btn-next')?.click(); });
+
+    // Atualiza metadata quando começa a tocar
+    audioEl.addEventListener('play',()=>{
+      try{
+        const cover=document.getElementById('pb-cover')?.src||'';
+        const title=document.getElementById('pb-title')?.textContent||'MusicStream';
+        const artist=document.getElementById('pb-artist')?.textContent||'';
+        const album =document.getElementById('pb-album')?.textContent||'';
+        ms.metadata=new MediaMetadata({
+          title, artist, album,
+          artwork: cover?[
+            {src:cover,sizes:'96x96',type:'image/png'},
+            {src:cover,sizes:'256x256',type:'image/png'},
+            {src:cover,sizes:'512x512',type:'image/png'},
+          ]:[]
+        });
+        ms.playbackState='playing';
+      }catch(_){}
+    });
+    audioEl.addEventListener('pause',()=>{ try{ms.playbackState='paused'}catch(_){} });
+  }
+
+  // 6) Evita que erros transitórios deixem o player parado: tenta novamente 1x
+  audioEl.addEventListener('error',()=>{
+    if(!audioEl.src) return;
+    const src=audioEl.src;
+    setTimeout(()=>{
+      if(audioEl.error){
+        try{
+          audioEl.src=src;
+          audioEl.load();
+          audioEl.play().catch(()=>{});
+        }catch(_){}
+      }
+    }, 800);
+  });
+})();
+</script>
 </body>
 </html>
