@@ -45,13 +45,6 @@ export const Header = ({ onSearchClick }: HeaderProps) => {
           <Clock className="w-4 h-4 text-primary-foreground" />
         </button>
         
-        <button 
-          onClick={onProfileClick}
-          className="w-9 h-9 rounded-full bg-primary/80 flex items-center justify-center hover:bg-primary transition-colors"
-        >
-          <User className="w-4 h-4 text-primary-foreground" />
-        </button>
-        
         <button className="w-9 h-9 rounded-full bg-primary/80 flex items-center justify-center hover:bg-primary transition-colors">
           <Bell className="w-4 h-4 text-primary-foreground" />
         </button>
@@ -60,8 +53,6 @@ export const Header = ({ onSearchClick }: HeaderProps) => {
           <Wifi className="w-4 h-4" />
           <span className="text-sm font-medium">{formatTime(time)}</span>
         </div>
-        
-        <span className="text-sm text-muted-foreground ml-1">Perfil</span>
       </div>
     </header>
   );
