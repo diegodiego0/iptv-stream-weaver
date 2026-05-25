@@ -1804,9 +1804,12 @@ loadHomeFeed();
   };
 
   window.addEventListener('popstate', ()=>{
-    if(sheet.classList.contains('open') ||
-       document.getElementById('queueSheet')?.classList.contains('open') ||
-       document.getElementById('ctxOverlay')?.classList.contains('open')) return;
+    const qOpen = document.getElementById('queueSheet')?.classList.contains('open');
+    const cOpen = document.getElementById('ctxOverlay')?.classList.contains('open');
+    const pOpen = sheet.classList.contains('open');
+    if(cOpen){ closeCtx(); try{ history.pushState({_pageIdx: stack.length-1}, '', location.href); }catch(_){ } return; }
+    if(qOpen){ closeQueue(); try{ history.pushState({_pageIdx: stack.length-1}, '', location.href); }catch(_){ } return; }
+    if(pOpen){ closePlayer(); try{ history.pushState({_pageIdx: stack.length-1}, '', location.href); }catch(_){ } return; }
     back();
     try{ history.pushState({_pageIdx: stack.length-1}, '', location.href); }catch(_){}
   });
