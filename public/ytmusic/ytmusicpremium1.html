@@ -1687,6 +1687,135 @@ async function checkArlStatus(){
 
 checkArlStatus();
 loadHomeFeed();
+
+// ══════════════════════════════════════════════════════════════════
+//  🔧 OVERRIDE — Paginação completa estilo Deezer (append-only)
+//  Mantém 100% do código original. Substitui dinamicamente navTo/
+//  navBack/openDetail/openArtistById/doSearch para suportar pilha
+//  de páginas com payload (várias telas de detalhe empilháveis,
+//  voltar restaura conteúdo + scroll, botão voltar do navegador).
+// ══════════════════════════════════════════════════════════════════
+(function(){
+  const ROOTS = new Set(['home','explore','library','search']);
+  const stack = [{view:'home', payload:null, scrollTop:0}];
+  let _navigating = false;
+
+  const _origOpenDetail     = window.openDetail;
+  const _origOpenArtistById = window.openArtistById;
+  const _origDoSearch       = window.doSearch;
+  const _origRenderLibrary  = window.renderLibrary;
+  const _origRenderExplore  = window.renderExplore;
+
+  function setActiveView(view){
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.querySelectorAll('.bottomnav a').forEach(a=>a.classList.remove('active'));
+    const el = document.getElementById('view-'+view);
+    if(el) el.classList.add('active');
+    const navTarget = ROOTS.has(view) && view!=='search' ? view :
+      ([...stack].reverse().find(e=>ROOTS.has(e.view) && e.view!=='search')?.view || 'home');
+    document.getElementById('nav-'+navTarget)?.classList.add('active');
+    S.currentView = view;
+  }
+
+  async function renderEntry(entry, opts={}){
+    setActiveView(entry.view);
+    const mainEl = document.getElementById('mainEl');
+    if(entry.view === 'detail' && entry.payload){
+      await _origOpenDetail.call(window, entry.payload);
+    } else if(entry.view === 'artist' && entry.payload){
+      const p = entry.payload;
+      await _origOpenArtistById.call(window, p.id, p.name, p.avatar);
+    } else if(entry.view === 'search' && entry.payload){
+      await _origDoSearch.call(window, entry.payload.q, entry.payload.type||'all');
+    } else if(entry.view === 'library'){
+      _origRenderLibrary?.call(window);
+    } else if(entry.view === 'explore'){
+      _origRenderExplore?.call(window);
+    }
+    requestAnimationFrame(()=>{
+      if(mainEl) mainEl.scrollTop = opts.restoreScroll ? (entry.scrollTop||0) : 0;
+    });
+  }
+
+  function pushHistoryState(){
+    try{ history.pushState({_pageIdx: stack.length-1}, '', location.href); }catch(_){}
+  }
+
+  function saveScroll(){
+    const top = stack[stack.length-1];
+    const m = document.getElementById('mainEl');
+    if(top && m) top.scrollTop = m.scrollTop;
+  }
+
+  async function goTo(entry, {replaceTop=false} = {}){
+    if(_navigating) return;
+    _navigating = true;
+    try{
+      saveScroll();
+      if(ROOTS.has(entry.view) && !entry.payload){
+        const top = stack[stack.length-1];
+        if(top && top.view === entry.view){ setActiveView(entry.view); return; }
+        const idx = stack.findIndex(e=>e.view===entry.view && !e.payload);
+        if(idx >= 0){
+          stack.splice(idx+1);
+          await renderEntry(stack[stack.length-1], {restoreScroll:true});
+          pushHistoryState();
+          return;
+        }
+      }
+      if(replaceTop) stack.pop();
+      stack.push({...entry, scrollTop:0});
+      await renderEntry(entry);
+      pushHistoryState();
+    } finally { _navigating = false; }
+  }
+
+  async function back(){
+    if(sheet.classList.contains('open')){ closePlayer(); return; }
+    if(document.getElementById('queueSheet')?.classList.contains('open')){ closeQueue(); return; }
+    if(document.getElementById('ctxOverlay')?.classList.contains('open')){ closeCtx(); return; }
+    if(stack.length <= 1){
+      if(stack[0].view !== 'home'){
+        stack.length = 0;
+        stack.push({view:'home', payload:null, scrollTop:0});
+        setActiveView('home');
+      }
+      return;
+    }
+    _navigating = true;
+    try{
+      stack.pop();
+      await renderEntry(stack[stack.length-1], {restoreScroll:true});
+    } finally { _navigating = false; }
+  }
+
+  window.navTo = function(view){ goTo({view, payload:null}); };
+  window.navBack = back;
+  window.openDetail = function(it){ return goTo({view:'detail', payload: it}); };
+  window.openArtistById = function(id, name, avatar){
+    return goTo({view:'artist', payload:{id, name, avatar}});
+  };
+  window.doSearch = function(q, type='all'){
+    q = (q||'').trim();
+    if(!q){ goTo({view:'home', payload:null}); return; }
+    const top = stack[stack.length-1];
+    const replaceTop = !!(top && top.view === 'search');
+    return goTo({view:'search', payload:{q, type}}, {replaceTop});
+  };
+
+  window.addEventListener('popstate', ()=>{
+    if(sheet.classList.contains('open') ||
+       document.getElementById('queueSheet')?.classList.contains('open') ||
+       document.getElementById('ctxOverlay')?.classList.contains('open')) return;
+    back();
+    try{ history.pushState({_pageIdx: stack.length-1}, '', location.href); }catch(_){}
+  });
+  try{ history.replaceState({_pageIdx:0}, '', location.href); }catch(_){}
+
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') back(); });
+
+  console.log('[nav] paginação Deezer-like ativada');
+})();
 </script>
 </body>
 </html>
