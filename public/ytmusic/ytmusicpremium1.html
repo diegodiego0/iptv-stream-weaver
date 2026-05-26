@@ -1820,5 +1820,150 @@ loadHomeFeed();
   console.log('[nav] paginação Deezer-like ativada');
 })();
 </script>
+
+<!-- ══════════════════════════════════════════════
+     ENHANCEMENTS v2: auto-advance reliability,
+     in-player tracklist, swipe-to-change track
+     (appended; preserves original code 100%)
+     ══════════════════════════════════════════════ -->
+<style>
+#ps-tracklist{margin:18px 12px 32px;border-top:1px solid var(--s2);padding-top:14px}
+#ps-tracklist .ps-tl-head{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;padding:0 6px 10px;display:flex;align-items:center;justify-content:space-between}
+#ps-tracklist .ps-tl-head span:last-child{font-weight:500;color:var(--muted)}
+#ps-tracklist .ps-tl-item{display:flex;align-items:center;gap:12px;padding:8px 6px;border-radius:8px;cursor:pointer;transition:background var(--ease)}
+#ps-tracklist .ps-tl-item:active{background:var(--s2)}
+#ps-tracklist .ps-tl-item.active{background:var(--s2)}
+#ps-tracklist .ps-tl-num{width:24px;text-align:center;font-size:13px;color:var(--muted);flex-shrink:0}
+#ps-tracklist .ps-tl-item.active .ps-tl-num,#ps-tracklist .ps-tl-item.active .ps-tl-title{color:var(--acc)}
+#ps-tracklist .ps-tl-thumb{width:40px;height:40px;border-radius:6px;object-fit:cover;background:var(--s3);flex-shrink:0}
+#ps-tracklist .ps-tl-info{flex:1;min-width:0}
+#ps-tracklist .ps-tl-title{font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ps-tracklist .ps-tl-sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+#ps-tracklist .ps-tl-dur{font-size:12px;color:var(--muted);flex-shrink:0;padding-right:4px}
+.ps-art{touch-action:pan-y;-webkit-user-drag:none;user-select:none}
+.ps-art.swiping{transition:none!important}
+</style>
+<script>
+(function(){
+  'use strict';
+
+  // ── 1. Auto-advance reliability: retry play() if it stalls between tracks ──
+  const _origPlayIdx = window.playIdx;
+  if(typeof _origPlayIdx === 'function'){
+    window.playIdx = async function(i){
+      try{
+        await _origPlayIdx(i);
+      }catch(_){}
+      // Garante que toca de fato — alguns navegadores rejeitam play() durante a troca de src
+      setTimeout(()=>{
+        try{
+          if(audio.paused && audio.src && audio.readyState >= 2){
+            audio.play().then(()=>setPlayIcons(true)).catch(()=>{});
+          }
+        }catch(_){}
+      }, 350);
+      renderPsTracklist();
+    };
+  }
+
+  // Reset error counters quando faixa termina naturalmente
+  audio.addEventListener('ended', ()=>{ _errCount=0; _lastErrId=null; }, true);
+
+  // Quando uma nova faixa carrega metadados, garante play
+  audio.addEventListener('canplay', ()=>{
+    if(audio.paused && audio.dataset._wantPlay !== '0'){
+      audio.play().then(()=>setPlayIcons(true)).catch(()=>{});
+    }
+  });
+
+  // ── 2. Tracklist abaixo dos controles no player sheet ──
+  const sheetEl = document.getElementById('playerSheet');
+  const tl = document.createElement('div');
+  tl.id = 'ps-tracklist';
+  tl.innerHTML = '<div class="ps-tl-head"><span>Próximas faixas</span><span id="ps-tl-count"></span></div><div id="ps-tl-list"></div>';
+  sheetEl.appendChild(tl);
+
+  function renderPsTracklist(){
+    const list = document.getElementById('ps-tl-list');
+    const cnt  = document.getElementById('ps-tl-count');
+    if(!list) return;
+    if(!S.queue || !S.queue.length){
+      list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 6px">Fila vazia</div>';
+      cnt.textContent = '';
+      return;
+    }
+    cnt.textContent = (S.idx+1)+' / '+S.queue.length;
+    list.innerHTML = S.queue.map((it,i)=>`
+      <div class="ps-tl-item ${i===S.idx?'active':''}" data-i="${i}">
+        <span class="ps-tl-num">${i===S.idx?'▶':i+1}</span>
+        <img class="ps-tl-thumb" src="${esc(thumb(it))}" loading="lazy" onerror="this.src='';this.style.background='var(--s3)';this.onerror=null;"/>
+        <div class="ps-tl-info">
+          <div class="ps-tl-title">${esc(it.title||'')}</div>
+          <div class="ps-tl-sub">${esc(it.uploader||'')}</div>
+        </div>
+        <span class="ps-tl-dur">${it.duration?fmt(it.duration):''}</span>
+      </div>`).join('');
+    list.querySelectorAll('.ps-tl-item').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const i = parseInt(el.dataset.i, 10);
+        if(!isNaN(i)) playIdx(i);
+      });
+    });
+    // Auto-scroll para faixa atual
+    const active = list.querySelector('.ps-tl-item.active');
+    if(active) active.scrollIntoView({block:'nearest', behavior:'smooth'});
+  }
+
+  // Re-render quando o sheet abre
+  const _origOpenPlayer = window.openPlayer;
+  window.openPlayer = function(){
+    _origOpenPlayer.apply(this, arguments);
+    setTimeout(renderPsTracklist, 50);
+  };
+
+  // ── 3. Swipe horizontal na capa para trocar de faixa ──
+  const art = document.getElementById('ps-art');
+  let _ax=0, _ay=0, _adx=0, _atime=0, _adragging=false;
+  art.addEventListener('touchstart', (e)=>{
+    if(e.touches.length !== 1) return;
+    _ax = e.touches[0].clientX;
+    _ay = e.touches[0].clientY;
+    _adx = 0;
+    _atime = Date.now();
+    _adragging = true;
+    art.classList.add('swiping');
+  }, {passive:true});
+  art.addEventListener('touchmove', (e)=>{
+    if(!_adragging || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - _ax;
+    const dy = e.touches[0].clientY - _ay;
+    // Só captura se gesto é claramente horizontal
+    if(Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8){
+      _adx = dx;
+      art.style.transform = `translateX(${dx*0.6}px) rotate(${dx*0.02}deg)`;
+      art.style.opacity = String(1 - Math.min(0.4, Math.abs(dx)/400));
+      e.preventDefault && e.preventDefault();
+    }
+  }, {passive:false});
+  art.addEventListener('touchend', ()=>{
+    if(!_adragging) return;
+    _adragging = false;
+    art.classList.remove('swiping');
+    art.style.transform = '';
+    art.style.opacity = '';
+    const dt = Date.now() - _atime;
+    const threshold = 60;
+    if(Math.abs(_adx) > threshold || (dt < 250 && Math.abs(_adx) > 30)){
+      if(_adx < 0) nextTrack();
+      else         prevTrack();
+    }
+  });
+
+  // Render inicial caso já haja fila
+  setTimeout(renderPsTracklist, 200);
+
+  console.log('[player+] tracklist + swipe + auto-advance fix ativados');
+})();
+</script>
 </body>
 </html>
