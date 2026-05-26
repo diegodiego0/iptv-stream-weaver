@@ -1871,12 +1871,17 @@ loadHomeFeed();
     }
   });
 
-  // ── 2. Tracklist abaixo dos controles no player sheet ──
+  // ── 2. Tracklist DENTRO do player sheet, ANTES das ações (Fila/Curtir/Salvar) ──
   const sheetEl = document.getElementById('playerSheet');
+  const extrasEl = sheetEl.querySelector('.ps-extras');
   const tl = document.createElement('div');
   tl.id = 'ps-tracklist';
   tl.innerHTML = '<div class="ps-tl-head"><span>Próximas faixas</span><span id="ps-tl-count"></span></div><div id="ps-tl-list"></div>';
-  sheetEl.appendChild(tl);
+  if(extrasEl && extrasEl.parentNode === sheetEl){
+    sheetEl.insertBefore(tl, extrasEl);
+  } else {
+    sheetEl.appendChild(tl);
+  }
 
   function renderPsTracklist(){
     const list = document.getElementById('ps-tl-list');
