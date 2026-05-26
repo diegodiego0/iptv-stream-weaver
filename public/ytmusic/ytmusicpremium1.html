@@ -1963,7 +1963,43 @@ loadHomeFeed();
   setTimeout(renderPsTracklist, 200);
 
   console.log('[player+] tracklist + swipe + auto-advance fix ativados');
+
+<!-- ── ENHANCEMENT v3: anti-copy / anti-selection / Deezer-only ── -->
+<style>
+  html, body, #app, .player-sheet, .queue-sheet, .ctx-menu, .ps-tl-item, .ps-tl-title, .ps-tl-sub {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  input, textarea, [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  img { -webkit-user-drag: none; user-drag: none; pointer-events: auto; }
+</style>
+<script>
+(function(){
+  // Bloqueia copy / cut / context-menu / seleção, exceto em inputs
+  const isEditable = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  ['copy','cut','contextmenu','selectstart','dragstart'].forEach(evt=>{
+    document.addEventListener(evt, (e)=>{
+      if(isEditable(e.target)) return;
+      e.preventDefault();
+    }, true);
+  });
+  // Bloqueia atalhos comuns (Ctrl+C, Ctrl+X, Ctrl+A, Ctrl+S, Ctrl+U, F12)
+  document.addEventListener('keydown', (e)=>{
+    if(isEditable(e.target)) return;
+    const k = (e.key||'').toLowerCase();
+    if((e.ctrlKey||e.metaKey) && ['c','x','a','s','u','p'].includes(k)) e.preventDefault();
+    if(k === 'f12') e.preventDefault();
+  }, true);
+  console.log('[player+] proteção contra cópia ativada');
 })();
 </script>
 </body>
 </html>
+
