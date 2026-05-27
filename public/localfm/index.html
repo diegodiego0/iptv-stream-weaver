@@ -1384,5 +1384,289 @@ document.addEventListener('keydown',e=>{
 
 init();
 </script>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     EXTENSÕES (preservando 100% do código original acima)
+     • Detalhe de Álbum/Playlist (lista de faixas, play em qualquer ordem)
+     • Editor manual de tags por faixa (com capa opcional via URL)
+     • Navegação "voltar" usando histórico do navegador
+═══════════════════════════════════════════════════════════════════════ -->
+<style>
+.lfm-modal{position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);z-index:9999;display:none;flex-direction:column;}
+.lfm-modal.show{display:flex;}
+.lfm-modal-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg2);position:sticky;top:0;}
+.lfm-modal-head h2{font-size:16px;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lfm-modal-body{flex:1;overflow:auto;padding:16px;}
+.lfm-icon-btn{width:38px;height:38px;border-radius:50%;background:var(--bg3);color:var(--text);display:flex;align-items:center;justify-content:center;font-size:20px;}
+.lfm-icon-btn:active{background:var(--bg4);}
+.lfm-album-hero{display:flex;gap:14px;align-items:flex-end;margin-bottom:18px;}
+.lfm-album-hero .cover{width:140px;height:140px;border-radius:12px;background:var(--bg3);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:48px;flex-shrink:0;box-shadow:0 8px 22px rgba(0,0,0,.45);}
+.lfm-album-hero .cover img{width:100%;height:100%;object-fit:cover;}
+.lfm-album-hero .meta{flex:1;min-width:0;}
+.lfm-album-hero .meta .t{font-size:22px;font-weight:800;line-height:1.15;margin-bottom:4px;word-break:break-word;}
+.lfm-album-hero .meta .s{color:var(--sub);font-size:13px;margin-bottom:10px;}
+.lfm-play-all{background:var(--accent);color:#fff;padding:10px 18px;border-radius:30px;font-weight:700;font-size:14px;display:inline-flex;align-items:center;gap:6px;}
+.lfm-play-all:active{background:var(--accentD);}
+.lfm-row{display:flex;align-items:center;gap:10px;padding:9px 6px;border-radius:8px;cursor:pointer;border-bottom:1px solid var(--border);}
+.lfm-row:hover{background:var(--bg3);}
+.lfm-row .n{width:26px;text-align:center;color:var(--sub);font-size:13px;font-variant-numeric:tabular-nums;}
+.lfm-row .a{width:42px;height:42px;border-radius:6px;background:var(--bg3);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.lfm-row .a img{width:100%;height:100%;object-fit:cover;}
+.lfm-row .b{flex:1;min-width:0;}
+.lfm-row .b .t{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lfm-row .b .s{color:var(--sub);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lfm-row .d{color:var(--sub);font-size:12px;font-variant-numeric:tabular-nums;}
+.lfm-row .edit{background:var(--bg4);color:var(--accentL);padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.4px;}
+.lfm-row .edit:active{background:var(--accent);color:#fff;}
+.lfm-form{display:flex;flex-direction:column;gap:12px;max-width:560px;margin:0 auto;}
+.lfm-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--sub);font-weight:600;}
+.lfm-form input{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:11px 12px;color:var(--text);font-size:14px;}
+.lfm-form input:focus{outline:none;border-color:var(--accent);}
+.lfm-form .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.lfm-form .actions{display:flex;gap:10px;margin-top:8px;}
+.lfm-form .actions button{flex:1;padding:12px;border-radius:10px;font-weight:700;font-size:14px;}
+.lfm-form .actions .save{background:var(--accent);color:#fff;}
+.lfm-form .actions .cancel{background:var(--bg3);color:var(--text);}
+</style>
+
+<div id="lfm-detail" class="lfm-modal" role="dialog" aria-modal="true">
+  <div class="lfm-modal-head">
+    <button class="lfm-icon-btn" onclick="LFM.closeDetail()" aria-label="Voltar">←</button>
+    <h2 id="lfm-detail-title">Álbum</h2>
+  </div>
+  <div class="lfm-modal-body" id="lfm-detail-body"></div>
+</div>
+
+<div id="lfm-edit" class="lfm-modal" role="dialog" aria-modal="true">
+  <div class="lfm-modal-head">
+    <button class="lfm-icon-btn" onclick="LFM.closeEdit()" aria-label="Voltar">←</button>
+    <h2>Editar tags</h2>
+  </div>
+  <div class="lfm-modal-body">
+    <form class="lfm-form" id="lfm-edit-form" onsubmit="return LFM.saveEdit(event)">
+      <input type="hidden" id="lfm-e-id">
+      <label>Título<input id="lfm-e-title" required></label>
+      <label>Artista<input id="lfm-e-artist"></label>
+      <label>Álbum<input id="lfm-e-album"></label>
+      <label>Artista do álbum<input id="lfm-e-album-artist"></label>
+      <div class="grid2">
+        <label>Ano<input id="lfm-e-year" inputmode="numeric" maxlength="4"></label>
+        <label>Nº faixa<input id="lfm-e-track" inputmode="numeric"></label>
+      </div>
+      <label>URL da capa (opcional)<input id="lfm-e-cover" placeholder="https://..."></label>
+      <div class="actions">
+        <button type="button" class="cancel" onclick="LFM.closeEdit()">Cancelar</button>
+        <button type="submit" class="save">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════
+   LFM EXTENSÕES — detalhe de álbum/playlist + editor de tags
+══════════════════════════════════════════════════════ */
+(function(){
+  const detailEl = document.getElementById('lfm-detail');
+  const detailBody = document.getElementById('lfm-detail-body');
+  const detailTitle = document.getElementById('lfm-detail-title');
+  const editEl = document.getElementById('lfm-edit');
+
+  function openDetail(kind, data){
+    const tracks = data.tracks || [];
+    const cover = data.cover_id
+      ? `<img src="/api/cover/${data.cover_id}" onerror="this.parentNode.innerHTML='${kind==='playlist'?'📻':'💿'}'">`
+      : (kind==='playlist'?'📻':'💿');
+    const title = data.album || data.name || 'Sem nome';
+    const sub = [data.artist || data.type || '', tracks.length+' faixa'+(tracks.length!==1?'s':''), data.year||''].filter(Boolean).join(' · ');
+    detailTitle.textContent = title;
+
+    const rows = tracks.map((t,i)=>{
+      const art = t.has_cover
+        ? `<img src="/api/cover/${t.id}" loading="lazy" onerror="this.parentNode.innerHTML='🎵'">`
+        : '🎵';
+      return `<div class="lfm-row">
+        <div class="n" onclick="LFM.playFromList('${data.__lid}',${i})">${t.track_number||i+1}</div>
+        <div class="a" onclick="LFM.playFromList('${data.__lid}',${i})">${art}</div>
+        <div class="b" onclick="LFM.playFromList('${data.__lid}',${i})">
+          <div class="t">${esc(t.title||t.filename||'—')}</div>
+          <div class="s">${esc(t.artist||'—')}${t.album?' · '+esc(t.album):''}</div>
+        </div>
+        <div class="d" onclick="LFM.playFromList('${data.__lid}',${i})">${fmt(t.duration)}</div>
+        <button class="edit" onclick="LFM.openEdit('${t.id}')">Editar</button>
+      </div>`;
+    }).join('') || '<div class="empty"><div class="empty-icon">🎵</div><h3>Sem faixas</h3></div>';
+
+    detailBody.innerHTML = `
+      <div class="lfm-album-hero">
+        <div class="cover">${cover}</div>
+        <div class="meta">
+          <div class="t">${esc(title)}</div>
+          <div class="s">${esc(sub)}</div>
+          <button class="lfm-play-all" onclick="LFM.playFromList('${data.__lid}',0)">▶ Tocar tudo</button>
+        </div>
+      </div>
+      <div>${rows}</div>`;
+
+    detailEl.classList.add('show');
+    history.pushState({lfm:'detail'},'');
+  }
+
+  // Cache de listas abertas para evitar serialização excessiva
+  const _lists = {};
+  function stashList(tracks){
+    const id = 'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    _lists[id] = tracks;
+    return id;
+  }
+
+  function closeDetail(){
+    detailEl.classList.remove('show');
+  }
+  function playFromList(lid, idx){
+    const tracks = _lists[lid];
+    if(!tracks) return;
+    queue = tracks.slice();
+    loadIdx(idx);
+    renderQueue();
+  }
+
+  // ─── Editor de tags ───────────────────────────────────────────────
+  function openEdit(tid){
+    const t = (allTracks||[]).find(x=>x.id===tid) || (queue||[]).find(x=>x.id===tid);
+    if(!t){ toast('Faixa não encontrada'); return; }
+    document.getElementById('lfm-e-id').value = t.id;
+    document.getElementById('lfm-e-title').value = t.title||'';
+    document.getElementById('lfm-e-artist').value = t.artist||'';
+    document.getElementById('lfm-e-album').value = t.album||'';
+    document.getElementById('lfm-e-album-artist').value = t.album_artist||t.artist||'';
+    document.getElementById('lfm-e-year').value = t.year||'';
+    document.getElementById('lfm-e-track').value = t.track_number||'';
+    document.getElementById('lfm-e-cover').value = '';
+    editEl.classList.add('show');
+    history.pushState({lfm:'edit'},'');
+  }
+  function closeEdit(){ editEl.classList.remove('show'); }
+
+  async function saveEdit(e){
+    e.preventDefault();
+    const id = document.getElementById('lfm-e-id').value;
+    const payload = {
+      title: document.getElementById('lfm-e-title').value.trim(),
+      artist: document.getElementById('lfm-e-artist').value.trim(),
+      album: document.getElementById('lfm-e-album').value.trim(),
+      album_artist: document.getElementById('lfm-e-album-artist').value.trim(),
+      year: document.getElementById('lfm-e-year').value.trim(),
+      track_number: parseInt(document.getElementById('lfm-e-track').value)||0,
+      cover_url: document.getElementById('lfm-e-cover').value.trim(),
+    };
+    toast('Salvando tags…');
+    const res = await api(`/api/track/${id}/tags`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(err=>err);
+    if(res && res.track){
+      const idx = allTracks.findIndex(x=>x.id===id);
+      if(idx>=0) allTracks[idx] = res.track;
+      const qi = queue.findIndex(x=>x.id===id);
+      if(qi>=0){ queue[qi] = res.track; if(qi===queueIdx) loadIdx(qi); }
+      renderTracks(); renderQueue();
+      toast('✓ Tags salvas');
+      closeEdit();
+    } else {
+      toast(res?.error || 'Erro ao salvar tags');
+    }
+    return false;
+  }
+
+  // ─── Override: clique em álbum/playlist abre detalhe (não toca direto) ───
+  window.playAlbum = function(tj){
+    const tracks = JSON.parse(tj);
+    // Encontra dados originais do álbum a partir do primeiro track
+    const first = tracks[0]||{};
+    const data = {
+      album: first.album, artist: first.artist, year: first.year,
+      cover_id: (tracks.find(t=>t.has_cover)||{}).id,
+      tracks: tracks,
+      __lid: stashList(tracks),
+    };
+    openDetail('album', data);
+  };
+  window.playPlaylist = function(tj){
+    const tracks = JSON.parse(tj);
+    const data = {
+      name: 'Playlist',
+      tracks: tracks,
+      cover_id: (tracks.find(t=>t.has_cover)||{}).id,
+      __lid: stashList(tracks),
+    };
+    openDetail('playlist', data);
+  };
+
+  // Reescreve renderPlaylists para passar o nome correto da playlist
+  const _origRenderPlaylists = window.renderPlaylists;
+  window.renderPlaylists = async function(){
+    const el=document.getElementById('playlists-grid');
+    if(!el) return;
+    el.innerHTML='<div class="empty"><div class="empty-icon">⏳</div><h3>Carregando…</h3></div>';
+    const lists=await api('/api/playlists').catch(()=>[]);
+    document.getElementById('playlists-count').textContent=lists.length;
+    if(!lists.length){ el.innerHTML=`<div class="empty"><div class="empty-icon">📻</div><h3>Nenhuma playlist</h3><p>Faça Scan para criar playlists por álbum, artista e ano</p></div>`; return; }
+    el.innerHTML=lists.map((p,idx)=>{
+      const art=p.cover_id ? `<img src="/api/cover/${p.cover_id}" loading="lazy" onerror="this.parentNode.innerHTML='📻'">` : '📻';
+      window.__lfmPlaylists = window.__lfmPlaylists||{};
+      window.__lfmPlaylists[idx] = p;
+      return `<div class="playlist-card" onclick="LFM.openPlaylistByIdx(${idx})">
+        <div class="album-thumb">${art}<div class="album-thumb-overlay"></div><div class="alb-play"><svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>
+        <div class="album-info">
+          <div class="alb-name">${esc(p.name)}</div>
+          <div class="alb-artist">${esc(p.type)}</div>
+          <div class="alb-meta">${p.track_count} faixa${p.track_count>1?'s':''} · ${fmt(p.duration)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  };
+
+  function openPlaylistByIdx(idx){
+    const p = (window.__lfmPlaylists||{})[idx];
+    if(!p) return;
+    const tracks = p.tracks||[];
+    openDetail('playlist', {
+      name: p.name, artist: p.type,
+      cover_id: p.cover_id || (tracks.find(t=>t.has_cover)||{}).id,
+      tracks: tracks,
+      __lid: stashList(tracks),
+    });
+  }
+
+  // Botão "Editar" também na lista geral de faixas
+  const _origRenderTracks = window.renderTracks;
+  window.renderTracks = function(){
+    _origRenderTracks();
+    document.querySelectorAll('#tracks-list .track-row').forEach(row=>{
+      if(row.querySelector('.lfm-edit-inline')) return;
+      const id = row.id.replace('tr-','');
+      const actions = row.querySelector('.tr-actions');
+      if(actions){
+        const b = document.createElement('button');
+        b.className = 'tr-enrich lfm-edit-inline';
+        b.textContent = '✎';
+        b.title = 'Editar tags';
+        b.onclick = (e)=>{ e.stopPropagation(); LFM.openEdit(id); };
+        actions.appendChild(b);
+      }
+    });
+  };
+
+  // Histórico — voltar fecha modais antes de sair
+  window.addEventListener('popstate', ()=>{
+    if(editEl.classList.contains('show')){ closeEdit(); history.pushState({lfm:'guard'},''); return; }
+    if(detailEl.classList.contains('show')){ closeDetail(); history.pushState({lfm:'guard'},''); return; }
+  });
+
+  window.LFM = { openDetail, closeDetail, openEdit, closeEdit, saveEdit, playFromList, openPlaylistByIdx };
+
+  // Re-render se já houve scan
+  if(window.allTracks && allTracks.length) renderTracks();
+})();
+</script>
 </body>
 </html>
+
