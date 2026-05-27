@@ -753,6 +753,56 @@ def api_status():
     })
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 🔧  EXTENSÕES (preservando 100% do código original acima)
+#     - Edição manual de tags por faixa
+#     - Detalhe de álbum/playlist (lista de faixas + edição individual)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/track/<tid>/tags", methods=["POST"])
+def api_track_set_tags(tid: str):
+    """Atualiza tags manualmente (sem Deezer) via ffmpeg, preservando áudio."""
+    body = request.get_json(silent=True) or {}
+    with _library_lock:
+        track = _library.get(tid)
+    if not track:
+        return jsonify({"error": "Faixa não encontrada"}), 404
+    path = Path(track["path"])
+    if not path.exists():
+        return jsonify({"error": "Arquivo não existe"}), 404
+
+    title        = str(body.get("title",        track["title"])).strip() or track["title"]
+    artist       = str(body.get("artist",       track["artist"])).strip() or track["artist"]
+    album        = str(body.get("album",        track["album"])).strip() or track["album"]
+    year         = str(body.get("year",         track.get("year", ""))).strip()
+    album_artist = str(body.get("album_artist", artist)).strip() or artist
+    try:
+        track_number = int(body.get("track_number") or track.get("track_number") or 0)
+    except (TypeError, ValueError):
+        track_number = 0
+
+    cover_url = str(body.get("cover_url", "")).strip()
+    cover_path = None
+    if cover_url:
+        cp = COVER_DIR / f"{tid}.jpg"
+        if _download_cover(cover_url, cp):
+            cover_path = cp
+    elif (COVER_DIR / f"{tid}.jpg").exists():
+        cover_path = COVER_DIR / f"{tid}.jpg"
+
+    ok = _inject_metadata_ffmpeg(
+        path, title, artist, album, year,
+        cover_path, track_number, album_artist
+    )
+    if not ok:
+        return jsonify({"error": "Falha ao gravar tags (ffmpeg)"}), 500
+
+    rebuilt = _build_track(path, enrich=False)
+    with _library_lock:
+        _library[tid] = rebuilt
+    return jsonify({"message": "Tags atualizadas", "track": rebuilt})
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 def _find_free_port(start: int = 5000, end: int = 5099) -> int:
     """Retorna o primeiro port livre no intervalo [start, end]."""
