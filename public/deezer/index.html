@@ -2786,5 +2786,128 @@ loadHomeFeed();
 })();
 </script>
 
+<!-- ══════════════════════════════════════════════════════════════
+     DIZERMUSICBOT HOME LAYOUT (append-only)
+     Injeta saudação, busca e Quick Access conforme mockup,
+     sem alterar nenhuma funcionalidade existente.
+     ══════════════════════════════════════════════════════════════ -->
+<style id="dizer-home-layout">
+  .dz-hero{padding:18px 16px 6px;display:flex;flex-direction:column;gap:14px}
+  .dz-greet-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .dz-greet h1{
+    margin:0;font-size:24px;font-weight:800;color:#fff;letter-spacing:-.3px;
+  }
+  .dz-greet p{margin:4px 0 0;color:#b9b3d1;font-size:13px}
+  .dz-bell{
+    width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.25);color:#e9e3ff;cursor:pointer;
+  }
+  .dz-search{
+    display:flex;align-items:center;gap:10px;padding:12px 14px;
+    background:rgba(26,16,48,.85);border:1px solid rgba(139,92,246,.25);
+    border-radius:14px;color:#9b95b8;cursor:pointer;
+    box-shadow:0 4px 24px rgba(139,92,246,.08) inset;
+  }
+  .dz-search svg{flex:0 0 auto;opacity:.8}
+  .dz-search span{flex:1;font-size:14px}
+  .dz-quick{
+    display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:6px 16px 4px;
+  }
+  .dz-qa{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:14px 16px;border-radius:14px;cursor:pointer;
+    font-weight:700;font-size:15px;color:#fff;border:1px solid transparent;
+    transition:transform .15s,box-shadow .15s;
+  }
+  .dz-qa:active{transform:scale(.97)}
+  .dz-qa.qa-1{background:linear-gradient(135deg,#7c3aed,#4f46e5);box-shadow:0 8px 22px rgba(124,58,237,.35)}
+  .dz-qa.qa-2{background:linear-gradient(135deg,#ec4899,#a855f7);box-shadow:0 8px 22px rgba(236,72,153,.30)}
+  .dz-qa.qa-3{background:linear-gradient(135deg,#ef4444,#f97316);box-shadow:0 8px 22px rgba(239,68,68,.28)}
+  .dz-qa.qa-4{background:linear-gradient(135deg,#22d3ee,#3b82f6);box-shadow:0 8px 22px rgba(34,211,238,.25)}
+  .dz-qa svg{opacity:.95}
+  .dz-section-label{padding:14px 16px 2px;font-size:13px;color:#b9b3d1;font-weight:600;letter-spacing:.2px;text-transform:uppercase}
+</style>
+
+<script>
+/* Injeta header "Good morning" + Search + Quick Access no topo do view-home */
+(function(){
+  function greet(){
+    const h=new Date().getHours();
+    if(h<5) return 'Boa noite';
+    if(h<12) return 'Bom dia';
+    if(h<18) return 'Boa tarde';
+    return 'Boa noite';
+  }
+  function go(section){
+    try{
+      const chip=document.querySelector('#chipRow .chip[data-section="'+section+'"]')
+              || document.querySelector('#chipRow .chip[data-q="'+section+'"]');
+      if(chip){chip.click();return;}
+    }catch(e){}
+  }
+  function focusSearch(){
+    try{
+      if(typeof openSearch==='function'){openSearch();return;}
+      const t=document.querySelector('.topbar input,.topbar [class*="search"],#search,#topSearch');
+      if(t&&t.focus){t.focus();return;}
+      const navE=document.getElementById('nav-explore');if(navE)navE.click();
+    }catch(e){}
+  }
+  function build(){
+    const home=document.getElementById('view-home');
+    if(!home||document.getElementById('dz-hero'))return;
+    const hero=document.createElement('div');
+    hero.id='dz-hero';hero.className='dz-hero';
+    hero.innerHTML=`
+      <div class="dz-greet-row">
+        <div class="dz-greet">
+          <h1>${greet()} <span style="filter:drop-shadow(0 0 6px rgba(255,200,80,.5))">👋</span></h1>
+          <p>Vamos ouvir algo bom</p>
+        </div>
+        <div class="dz-bell" title="Notificações">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6V11a6 6 0 0 0-5-5.91V4a1 1 0 1 0-2 0v1.09A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        </div>
+      </div>
+      <div class="dz-search" id="dz-search-bar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+          <span>Buscar músicas, álbuns ou artistas...</span>
+      </div>
+      <div class="dz-quick">
+        <div class="dz-qa qa-1" data-go="hits brasil">
+          <span>Top Músicas</span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17h2v-7H3v7zm4 4h2V6H7v15zm4-4h2V10h-2v7zm4 4h2v-9h-2v9zm4-4h2V6h-2v11z"/></svg>
+        </div>
+        <div class="dz-qa qa-2" data-go="pop hits">
+          <span>Novos Lançamentos</span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6z"/></svg>
+        </div>
+        <div class="dz-qa qa-3" data-explore>
+          <span>Gêneros</span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg>
+        </div>
+        <div class="dz-qa qa-4" data-go="lofi chill">
+          <span>Mood</span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm-3.5 8a1.5 1.5 0 1 1 1.5-1.5A1.5 1.5 0 0 1 8.5 10zm7 0a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zM12 18a5.5 5.5 0 0 1-5-3.2 1 1 0 1 1 1.8-.9 3.5 3.5 0 0 0 6.4 0 1 1 0 1 1 1.8.9A5.5 5.5 0 0 1 12 18z"/></svg>
+        </div>
+      </div>
+    `;
+    home.insertBefore(hero, home.firstChild);
+    hero.querySelector('#dz-search-bar').addEventListener('click', focusSearch);
+    hero.querySelectorAll('.dz-qa').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        if(el.hasAttribute('data-explore')){const n=document.getElementById('nav-explore');if(n)n.click();return;}
+        const q=el.getAttribute('data-go');if(q)go(q);
+      });
+    });
+    /* Esconde a chip-row antiga já que temos quick access */
+    const chipRow=document.getElementById('chipRow');
+    if(chipRow) chipRow.style.marginTop='4px';
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', build);
+  } else { build(); }
+})();
+</script>
+
 </body>
 </html>
