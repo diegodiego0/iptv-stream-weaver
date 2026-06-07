@@ -2615,122 +2615,169 @@ loadHomeFeed();
 </script>
 
 <!-- ══════════════════════════════════════════════════════════════
-     SPOTIFY-LIKE THEME OVERLAY (append-only, preserves all logic)
-     Aplica visual semelhante ao Spotify mantendo 100% das funcionalidades.
+     DIZERMUSICBOT NEON THEME (append-only, preserves all logic)
+     Visual dark + neon purple/cyan baseado no mockup de referência.
      ══════════════════════════════════════════════════════════════ -->
-<style id="spotify-skin">
+<style id="dizer-skin">
   :root{
-    --acc:#1db954 !important;
-    --acc2:#1ed760 !important;
-    --acc-rgb:29,185,84 !important;
-    --bg:#000 !important;
-    --s1:#121212 !important;
-    --s2:#181818 !important;
-    --s3:#1f1f1f !important;
-    --s4:#282828 !important;
-    --border:rgba(255,255,255,.06) !important;
-    --radius:8px !important;
+    --acc:#8b5cf6 !important;
+    --acc2:#a78bfa !important;
+    --acc-cyan:#22d3ee !important;
+    --acc-pink:#ec4899 !important;
+    --acc-rgb:139,92,246 !important;
+    --bg:#06030f !important;
+    --s1:#0b0716 !important;
+    --s2:#120a24 !important;
+    --s3:#1a1030 !important;
+    --s4:#231542 !important;
+    --border:rgba(139,92,246,.15) !important;
+    --radius:18px !important;
+    --text:#fff !important;
+    --muted:#b9b3d1 !important;
   }
-  html,body{background:#000 !important}
-  /* Topbar — título grande estilo Spotify */
+  html,body{
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(139,92,246,.18), transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, rgba(34,211,238,.10), transparent 60%),
+      #06030f !important;
+    color:#fff !important;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif !important;
+  }
+  /* Topbar */
   .topbar{
-    background:linear-gradient(180deg,#000 0%,rgba(0,0,0,.7) 100%) !important;
+    background:transparent !important;
     border-bottom:none !important;
     height:64px !important;
     backdrop-filter:blur(8px) !important;
   }
-  .topbar .title, .topbar h1, .topbar .topbar-title{
-    font-size:24px !important;font-weight:700 !important;letter-spacing:-.5px !important;color:#fff !important;
+  .topbar .title,.topbar h1,.topbar-title{
+    font-size:26px !important;font-weight:800 !important;letter-spacing:-.4px !important;
+    background:linear-gradient(90deg,#fff 0%,#c4b5fd 100%) !important;
+    -webkit-background-clip:text !important;background-clip:text !important;-webkit-text-fill-color:transparent !important;
   }
-  /* Botões circulares header */
   .topbar button,.topbar .icon-btn{color:#fff !important}
-  /* Chips/abas — pílulas estilo Spotify */
+  /* Search input — pílula glass */
+  input[type="search"],input[type="text"],.search-input,.search-box input{
+    background:rgba(26,16,48,.85) !important;
+    border:1px solid rgba(139,92,246,.25) !important;
+    border-radius:14px !important;
+    color:#fff !important;
+    padding:12px 16px !important;
+    box-shadow:0 4px 24px rgba(139,92,246,.08) inset !important;
+  }
+  input::placeholder{color:#9b95b8 !important}
+  /* Chips/abas — pílulas neon */
   .chip,.tab,.filter-chip,.chips button,.tabs button,[class*="chip"],[class*="Chip"]{
     border-radius:999px !important;
-    padding:6px 14px !important;
-    font-size:13px !important;
-    font-weight:600 !important;
-    background:#232323 !important;
-    color:#fff !important;
-    border:none !important;
-    transition:background .15s,color .15s !important;
+    padding:8px 16px !important;font-size:13px !important;font-weight:600 !important;
+    background:rgba(139,92,246,.12) !important;
+    color:#e9e3ff !important;border:1px solid rgba(139,92,246,.2) !important;
+    transition:all .18s !important;
   }
   .chip.active,.tab.active,.filter-chip.active,[class*="chip"].active,[aria-selected="true"]{
-    background:#1db954 !important;color:#000 !important;
+    background:linear-gradient(135deg,#8b5cf6,#6366f1) !important;color:#fff !important;
+    border-color:transparent !important;box-shadow:0 4px 16px rgba(139,92,246,.45) !important;
   }
-  /* Cards / grid items */
-  .shelf-card,.lib-item,.card{
-    background:transparent !important;
-    border-radius:6px !important;
+  /* Cards / shelf */
+  .shelf-card,.lib-item,.card{background:transparent !important;border-radius:14px !important}
+  .shelf-card .thumb,.lib-thumb,.card img,.shelf-card img{
+    border-radius:14px !important;
+    box-shadow:0 10px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(139,92,246,.12) !important;
   }
-  .shelf-card .thumb,.lib-thumb{border-radius:6px !important;box-shadow:0 8px 24px rgba(0,0,0,.5)}
-  /* Inputs / busca */
-  input[type="search"],input[type="text"],.search-input{
-    background:#1f1f1f !important;border:none !important;border-radius:8px !important;color:#fff !important;
-  }
-  /* Mini player (na parte inferior) — fundo elevado */
-  .mini-player,.np-bar,.now-playing-bar,[class*="mini"]{
-    background:#181818 !important;
-    border-top:none !important;
-    border-radius:8px !important;
-    margin:0 8px 4px !important;
-  }
-  /* Bottom nav — estilo Spotify */
-  .bottomnav{
-    background:#000 !important;
-    border-top:none !important;
-    padding-bottom:env(safe-area-inset-bottom,0) !important;
-  }
-  .bottomnav a{
-    color:#b3b3b3 !important;
-    display:flex !important;flex-direction:column !important;align-items:center !important;gap:2px !important;
-    font-size:11px !important;font-weight:500 !important;
-    background:transparent !important;
-  }
-  .bottomnav a svg{width:24px;height:24px;fill:currentColor}
-  .bottomnav a.active{color:#fff !important;font-weight:700 !important}
-  .bottomnav a.active::after{
-    content:"";display:block;width:18px;height:2px;background:#1db954;border-radius:2px;margin-top:2px;
-  }
-  /* Player Sheet — botão play verde */
-  #playerSheet, .player-sheet{
-    background:linear-gradient(180deg,#2a2a2a 0%,#0a0a0a 80%) !important;
-  }
-  .ps-controls .play,.ps-controls .btn-play,#ps-play,[class*="play-btn"],.player-sheet .play-btn{
-    background:#fff !important;color:#000 !important;border-radius:50% !important;
-  }
-  .ps-controls .play svg,#ps-play svg{fill:#000 !important}
-  /* Botão verde para acompanhar (artista/playlist) */
-  .btn-follow,.btn-primary,.btn-play-shuffle{
-    background:#1db954 !important;color:#000 !important;border-radius:999px !important;font-weight:700 !important;
-  }
-  /* Curtir verde quando ativo */
-  .liked svg,[aria-pressed="true"].like svg,.like.active svg{fill:#1db954 !important;color:#1db954 !important}
-  /* Tracklist hover */
-  .track-row:hover,.tracklist li:hover,.qi:hover{background:rgba(255,255,255,.06) !important}
-  /* Slider/progress verde */
-  input[type="range"]{accent-color:#1db954}
-  .progress-fill,.seek-fill{background:#1db954 !important}
-  /* Scrollbar fina */
-  ::-webkit-scrollbar{width:8px;height:8px;display:block}
-  ::-webkit-scrollbar-thumb{background:#535353;border-radius:4px}
-  ::-webkit-scrollbar-track{background:transparent}
-  /* Browse-all tiles coloridos (Search) */
+  /* Quick-access / browse tiles → glass roxo neon */
   .browse-tile,.genre-card{
-    border-radius:8px !important;padding:16px !important;
-    min-height:96px !important;font-weight:700 !important;font-size:18px !important;color:#fff !important;
+    border-radius:16px !important;padding:16px !important;min-height:84px !important;
+    font-weight:700 !important;font-size:16px !important;color:#fff !important;
+    background:linear-gradient(135deg,rgba(139,92,246,.35),rgba(99,102,241,.25)) !important;
+    border:1px solid rgba(139,92,246,.35) !important;
+    box-shadow:0 8px 24px rgba(139,92,246,.18) !important;
     position:relative;overflow:hidden;
   }
+  .browse-tile:nth-child(2n),.genre-card:nth-child(2n){
+    background:linear-gradient(135deg,rgba(236,72,153,.32),rgba(168,85,247,.25)) !important;
+    border-color:rgba(236,72,153,.35) !important;
+  }
+  .browse-tile:nth-child(3n),.genre-card:nth-child(3n){
+    background:linear-gradient(135deg,rgba(34,211,238,.28),rgba(59,130,246,.22)) !important;
+    border-color:rgba(34,211,238,.35) !important;
+  }
+  /* Section titles */
+  h2,.section-title,.shelf-title{
+    font-size:20px !important;font-weight:700 !important;color:#fff !important;letter-spacing:-.2px !important;
+  }
+  .see-all,.shelf-more{color:#a78bfa !important;font-weight:600 !important;font-size:13px !important}
+  /* Mini player elevado */
+  .mini-player,.np-bar,.now-playing-bar,[class*="mini"]{
+    background:linear-gradient(135deg,rgba(26,16,48,.95),rgba(35,21,66,.95)) !important;
+    border:1px solid rgba(139,92,246,.25) !important;
+    border-radius:16px !important;
+    margin:0 10px 6px !important;
+    box-shadow:0 8px 32px rgba(0,0,0,.5), 0 0 24px rgba(139,92,246,.15) !important;
+    backdrop-filter:blur(12px) !important;
+  }
+  /* Bottom nav neon */
+  .bottomnav{
+    background:rgba(11,7,22,.92) !important;
+    border-top:1px solid rgba(139,92,246,.15) !important;
+    padding-bottom:env(safe-area-inset-bottom,0) !important;
+    backdrop-filter:blur(14px) !important;
+  }
+  .bottomnav a{
+    color:#7e7796 !important;
+    display:flex !important;flex-direction:column !important;align-items:center !important;gap:3px !important;
+    font-size:11px !important;font-weight:500 !important;background:transparent !important;
+  }
+  .bottomnav a svg{width:24px;height:24px}
+  .bottomnav a.active{color:#a78bfa !important;font-weight:700 !important}
+  .bottomnav a.active svg{filter:drop-shadow(0 0 8px rgba(167,139,250,.7))}
+  /* Player sheet — fundo neon profundo */
+  #playerSheet,.player-sheet{
+    background:
+      radial-gradient(600px 400px at 50% 0%, rgba(139,92,246,.35), transparent 70%),
+      radial-gradient(500px 400px at 50% 100%, rgba(236,72,153,.20), transparent 70%),
+      #0b0716 !important;
+  }
+  .ps-controls .play,.ps-controls .btn-play,#ps-play,[class*="play-btn"],.player-sheet .play-btn{
+    background:#fff !important;color:#0b0716 !important;border-radius:50% !important;
+    width:64px !important;height:64px !important;
+    box-shadow:0 8px 24px rgba(139,92,246,.5), 0 0 0 4px rgba(255,255,255,.08) !important;
+  }
+  .ps-controls .play svg,#ps-play svg{fill:#0b0716 !important}
+  /* Botões primários — gradiente */
+  .btn-follow,.btn-primary,.btn-play-shuffle{
+    background:linear-gradient(135deg,#8b5cf6,#6366f1) !important;color:#fff !important;
+    border-radius:999px !important;font-weight:700 !important;border:none !important;
+    box-shadow:0 4px 16px rgba(139,92,246,.45) !important;
+  }
+  /* Like rosa neon */
+  .liked svg,[aria-pressed="true"].like svg,.like.active svg{
+    fill:#ec4899 !important;color:#ec4899 !important;
+    filter:drop-shadow(0 0 8px rgba(236,72,153,.7));
+  }
+  /* Tracklist */
+  .track-row:hover,.tracklist li:hover,.qi:hover{background:rgba(139,92,246,.12) !important}
+  /* Slider/progress neon roxo */
+  input[type="range"]{accent-color:#a78bfa}
+  .progress-fill,.seek-fill{
+    background:linear-gradient(90deg,#8b5cf6,#ec4899) !important;
+    box-shadow:0 0 8px rgba(139,92,246,.6) !important;
+  }
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:8px;height:8px;display:block}
+  ::-webkit-scrollbar-thumb{background:rgba(139,92,246,.4);border-radius:4px}
+  ::-webkit-scrollbar-track{background:transparent}
+  /* Greeting "Good morning" style helper */
+  .greeting{font-size:24px !important;font-weight:800 !important;color:#fff !important}
+  .greeting-sub{color:#b9b3d1 !important;font-size:13px !important;margin-top:2px}
 </style>
 
 <script>
-/* Renomeia labels da bottom nav para padrão Spotify (PT-BR), sem mudar IDs/handlers */
+/* Labels da bottom nav PT-BR (sem mudar IDs/handlers) */
 (function(){
   try{
-    const map={'nav-home':'Início','nav-explore':'Buscar','nav-library':'Sua Biblioteca'};
+    const map={'nav-home':'Início','nav-explore':'Explorar','nav-library':'Biblioteca','nav-downloads':'Downloads','nav-profile':'Perfil'};
     Object.entries(map).forEach(([id,lbl])=>{
       const el=document.getElementById(id);if(!el)return;
-      // substitui o último text node visível
       const nodes=[...el.childNodes].filter(n=>n.nodeType===3);
       if(nodes.length){nodes[nodes.length-1].nodeValue=' '+lbl;}
       else{el.appendChild(document.createTextNode(' '+lbl));}
